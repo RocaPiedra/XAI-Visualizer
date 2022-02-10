@@ -29,21 +29,21 @@ def choose_model(input_argument = None, modelname = None):
         model = models.resnet18(pretrained=True)
     elif modelname == 'alexnet':
         model = models.alexnet(pretrained=True)
-    else:
+    elif input_argument is not None:
         if int(input_argument) in (1,2):
             option = int(input_argument)
-        else:
-            option = int(input('Model is not defined choose from the available list:\n'
-        '1. Alexnet\n2. ResNet\n'))
-        if option == 1:
-            model = models.alexnet(pretrained=True)
-            print('Alexnet is the chosen classifier')
-        elif option == 2:
-            model = models.resnet18(pretrained=True)
-            print('ResNet is the chosen classifier')
-        else:
-            print('Option incorrect, set default model: Alexnet')
-            model = models.alexnet(pretrained=True)
+    else:
+        option = int(input('Model is not defined choose from the available list:\n'
+    '1. Alexnet\n2. ResNet\n'))
+    if option == 1:
+        model = models.alexnet(pretrained=True)
+        print('Alexnet is the chosen classifier')
+    elif option == 2:
+        model = models.resnet18(pretrained=True)
+        print('ResNet is the chosen classifier')
+    else:
+        print('Option incorrect, set default model: Alexnet')
+        model = models.alexnet(pretrained=True)
 
     return model
 

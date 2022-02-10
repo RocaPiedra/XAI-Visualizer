@@ -1,6 +1,6 @@
 """
 @author: Pablo Roca - github.com/RocaPiedra
-@reference: Utku Ozbulak - github.com/utkuozbulak
+@original author: Utku Ozbulak - github.com/utkuozbulak
 """
 from time import sleep
 from PIL import Image
@@ -207,7 +207,7 @@ if __name__ == '__main__':
     if option == 1:
         print('Webcam selected as input')
         frame_counter = 0
-        cap = cv2.VideoCapture(0)   # /dev/video0
+        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)   # /dev/video0
         while True:
             ret, frame = cap.read()
             frame_counter += 1
@@ -263,9 +263,7 @@ if __name__ == '__main__':
                 break
             original_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             cv2.imshow('Webcam',frame)
-            c = cv2.waitKey(1) # ASCII 'Esc' value
-            if c == 27:
-                break
+            
             prep_img = preprocess_image(original_image)
             file_name_to_export = f'webcam_{frame_counter}'
             cam = grad_cam.generate_cam(prep_img)
@@ -274,8 +272,12 @@ if __name__ == '__main__':
             cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
             cv2.imshow('GradCam',cv2_heatmap_on_image)
 
-        cap.release()
-        cv2.destroyAllWindows()
+            c = cv2.waitKey(1) # ASCII 'Esc' value
+            if c == 27:
+                print('Closing GradCAM, shutting down application...')
+                cap.release()
+                cv2.destroyAllWindows()
+                exit()
 
     else:
         print('Wrong option, shutting down application...')
