@@ -120,7 +120,7 @@ class GradCam():
             model_output = model_output.cpu() # return copy to CPU to use numpy
             target_class = np.argmax(model_output.data.numpy())
             if target_class != prev_class:
-                print(f'Last detected class is: {imagenet_dictionary[target_class]}')
+                print(f'Last detected class is: {imagenet_dictionary[target_class]} | score: {model_output[0][target_class]}')
                 prev_class = target_class
 
         # Target for backprop
@@ -128,11 +128,11 @@ class GradCam():
         one_hot_output[0][target_class] = 1
         # Zero grads
         if self.model.__class__.__name__ == 'ResNet':
-            self.model._modules.zero_grad()
+            self.model.zero_grad()
         else:
             self.model.features.zero_grad()
-
-        self.model.classifier.zero_grad()
+            self.model.classifier.zero_grad()
+        
         # Backward pass with specified target
         model_output.backward(gradient=one_hot_output, retain_graph=True)
         # Get hooked gradients
@@ -245,10 +245,10 @@ if __name__ == '__main__':
             # Generate cam mask
             cam = grad_cam.generate_cam(prep_img)
             # Save mask
-            save_class_activation_images(original_image, cam, file_name_to_export)
-            print('Grad cam completed for image:',file_name_to_export)
+            save_class_activation_images(original_image, cam, file_name_to_export, pretrained_model.__class__.__name__)
+            print('GradCAM completed for image:',file_name_to_export)
 
-    if option == 3:
+    elif option == 3:
         print('Video selected as input')
         frame_counter = 0
         video_path = '../input_images/video_input/Road-traffic.mp4'
@@ -268,9 +268,9 @@ if __name__ == '__main__':
             heatmap, heatmap_on_image = apply_colormap_on_image(original_image, cam, 'hsv')
             cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
             cv2.imshow('GradCam',cv2_heatmap_on_image)
-            jet_heatmap, jet_heatmap_on_image = apply_colormap_on_image(original_image, cam, 'jet')
-            jet_cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
-            cv2.imshow('Jet GradCam',jet_cv2_heatmap_on_image)
+            # jet_heatmap, jet_heatmap_on_image = apply_colormap_on_image(original_image, cam, 'jet')
+            # jet_cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
+            # cv2.imshow('Jet GradCam',jet_cv2_heatmap_on_image)
 
             c = cv2.waitKey(1) # ASCII 'Esc' value
             if c == 27:

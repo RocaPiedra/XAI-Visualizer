@@ -24,10 +24,10 @@ def get_image_path(path, filename):
         image_path = path + filename
         return image_path
 
-def choose_model(input_argument = None, modelname = None):
-    if modelname == 'resnet':
-        model = models.resnet18(pretrained=True)
-    elif modelname == 'alexnet':
+def choose_model(input_argument = None, model_name = None):
+    if model_name == 'resnet':
+        model = models.resnet50(pretrained=True)
+    elif model_name == 'alexnet':
         model = models.alexnet(pretrained=True)
     elif input_argument is not None:
         if int(input_argument) in (1,2):
