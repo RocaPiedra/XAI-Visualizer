@@ -27,10 +27,9 @@ class CamExtractor():
     def __init__(self, model, target_layer):
         self.model = model
         if torch.cuda.is_available() and sendToGPU:
-            if visualize: print('CUDA ENABLED in CamExtractor')
             self.model.to('cuda')
         else:
-            print(f'Torch cuda is NOT available')
+            print(f'GPU acceleration is NOT available')
         self.target_layer = target_layer
         self.gradients = None
 
@@ -46,28 +45,22 @@ class CamExtractor():
 
         if not x.is_cuda and sendToGPU:
             x = x.to(gpu)
-            if visualize: print(f'in forward pass on convolutions x is in cuda -> {x.is_cuda}')
 
         if self.model.__class__.__name__ == 'ResNet':
             for module_pos, module in self.model._modules.items():
-                print(f'*\n{module_pos}: {module}')
-                # x = module(x)
+                if visualize: print(f'*\n{module_pos}: {module}')
                 if module_pos == "avgpool":
-                    print(f'*\nNext module is average pooling -> size is {module.output_size}; x size is: {x.size()}')
-                    if module.output_size != (1, 512):
-                        print(f'Size is not correct, change to (1, 512)')
-                        module = torch.nn.AdaptiveAvgPool2d((1,1))
-                        print(f'*\nNew average pooling module -> size is {module.output_size}')
-                    # print(dir(module))
+                    if visualize: print(f'*\nNext module is average pooling -> size is {module.output_size}; x size is: {x.size()}')
                     x.register_hook(self.save_gradient)
-                    print(f'*\nAfter registering hook -> size is {module.output_size}')
                     conv_output = x  # Save the convolution output on that layer
                     x = module(x)
-                    print(f'*\navgpool output size is: {x.size()}')
-                    if visualize: print("hook layer for ResNet: ", module)
+                    if visualize: print(f'*\navgpool output size is: {x.size()}*\nhook layer for ResNet: {module}')
+                    return conv_output, x # For ResNet after Avg Pool there is FC layer, skip here to avoid doing FC twice
+                
                 else:
+                    if visualize: print(f"*\nforward pass in layer {module_pos} for ResNet")
                     x = module(x)
-                    if visualize: print("forward pass in layer for ResNet: ", module)
+
         else:
             for module_pos, module in self.model.features._modules.items():
                 x = module(x)  # Forward
@@ -87,24 +80,23 @@ class CamExtractor():
         if self.model.__class__.__name__ == 'ResNet':
             # Forward pass on the convolutions
             if not x.is_cuda and sendToGPU:
-                if visualize: print('**\nx in forward pass to GPU\n**')
                 x = x.to('cuda')
-                if visualize: print(f'in forward pass x is in cuda {x.is_cuda}')
+
             conv_output, x = self.forward_pass_on_convolutions(x)
-            x = torch.transpose(x, 1, 0)
             x = x.cpu() # return copy to CPU to use numpy
-            # x = x.reshape(x.size(0), -1)  # Flatten view for alexnet, reshape for resnet
-            x = x.view(x.size(0),-1)
+            x = x.reshape(x.size(0), -1)  # Flatten view for alexnet, reshape for resnet
             if not x.is_cuda and sendToGPU: # for GPU forward pass on classifier
                 x = x.to('cuda')
             # Forward pass on the classifier
             x = self.model.fc(x)
+
         else:
             # Forward pass on the convolutions
             conv_output, x = self.forward_pass_on_convolutions(x)
             x = x.view(x.size(0), -1)  # Flatten
             # Forward pass on the classifier
             x = self.model.classifier(x)
+
         return conv_output, x
 
 class GradCam():
@@ -123,6 +115,7 @@ class GradCam():
         # model_output is the final output of the model (1, 1000)
         conv_output, model_output = self.extractor.forward_pass(input_image)
         global prev_class
+
         if target_class is None:
             model_output = model_output.cpu() # return copy to CPU to use numpy
             target_class = np.argmax(model_output.data.numpy())
@@ -134,7 +127,11 @@ class GradCam():
         one_hot_output = torch.FloatTensor(1, model_output.size()[-1]).zero_()
         one_hot_output[0][target_class] = 1
         # Zero grads
-        self.model.features.zero_grad()
+        if self.model.__class__.__name__ == 'ResNet':
+            self.model._modules.zero_grad()
+        else:
+            self.model.features.zero_grad()
+
         self.model.classifier.zero_grad()
         # Backward pass with specified target
         model_output.backward(gradient=one_hot_output, retain_graph=True)
@@ -157,12 +154,6 @@ class GradCam():
         cam = np.uint8(cam * 255)  # Scale between 0-255 to visualize
         cam = np.uint8(Image.fromarray(cam).resize((input_image.shape[2],
                        input_image.shape[3]), Image.ANTIALIAS))/255
-        # ^ I am extremely unhappy with this line. Originally resizing was done in cv2 which
-        # supports resizing numpy matrices with antialiasing, however,
-        # when I moved the repository to PIL, this option was out of the window.
-        # So, in order to use resizing with ANTIALIAS feature of PIL,
-        # I briefly convert matrix to PIL image and then back.
-        # If there is a more beautiful way, do not hesitate to send a PR.
 
         # You can also use the code below instead of the code line above, suggested by @ ptschandl
         # from scipy.ndimage.interpolation import zoom
@@ -171,12 +162,9 @@ class GradCam():
 
 
 if __name__ == '__main__':
-
     #Use input Arguments
     input_arguments = sys.argv
-    print(input_arguments)
 
-    images_processed = int(0) #debug
     imagenet_dictionary = get_imagenet_dictionary()
     # Choose model
     if len(input_arguments) >= 2:
@@ -204,6 +192,7 @@ if __name__ == '__main__':
             option = int(input_arguments[2])
     else:
         option = int(input('What type of input do you want: \n1.Webcam\n2.Use a path to open images\n3.Use a path to open video\n'))
+        
     if option == 1:
         print('Webcam selected as input')
         frame_counter = 0
@@ -217,7 +206,11 @@ if __name__ == '__main__':
             cv2.imshow('Webcam',frame)
             c = cv2.waitKey(1) # ASCII 'Esc' value
             if c == 27:
-                break
+                print('Closing GradCAM, shutting down application...')
+                cap.release()
+                cv2.destroyAllWindows()
+                exit()
+
             prep_img = preprocess_image(original_image, sendToGPU)
             file_name_to_export = f'webcam_{frame_counter}'
             
@@ -230,6 +223,11 @@ if __name__ == '__main__':
             heatmap, heatmap_on_image = apply_colormap_on_image(original_image, cam, 'hsv')
             cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
             cv2.imshow('GradCam',cv2_heatmap_on_image)
+            if c == 27:
+                print('Closing GradCAM, shutting down application...')
+                cap.release()
+                cv2.destroyAllWindows()
+                exit()
 
         cap.release()
         cv2.destroyAllWindows()
@@ -249,7 +247,6 @@ if __name__ == '__main__':
             # Save mask
             save_class_activation_images(original_image, cam, file_name_to_export)
             print('Grad cam completed for image:',file_name_to_export)
-            images_processed+=1
 
     if option == 3:
         print('Video selected as input')
@@ -271,6 +268,9 @@ if __name__ == '__main__':
             heatmap, heatmap_on_image = apply_colormap_on_image(original_image, cam, 'hsv')
             cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
             cv2.imshow('GradCam',cv2_heatmap_on_image)
+            jet_heatmap, jet_heatmap_on_image = apply_colormap_on_image(original_image, cam, 'jet')
+            jet_cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
+            cv2.imshow('Jet GradCam',jet_cv2_heatmap_on_image)
 
             c = cv2.waitKey(1) # ASCII 'Esc' value
             if c == 27:
@@ -282,6 +282,3 @@ if __name__ == '__main__':
     else:
         print('Wrong option, shutting down application...')
         exit()
-
-    elapsed = '*unknown*'
-    print(f'A total of {images_processed} images received gradcam in {elapsed} seconds')
