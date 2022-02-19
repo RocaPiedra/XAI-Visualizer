@@ -6,7 +6,7 @@ Your favourite repository to open the deep learning black box! This is a work in
 
 - Visualization gradient based methods 
 - Various deep learning architectures
-- Input flexibility. It works with cameras, folders and video files
+- Input flexibility. It works with cameras, image folders and video files
 - Integration with Carla Simulator (TBD)
 - Windows and Linux ready
 - CPU and GPU accelerated, you choose
