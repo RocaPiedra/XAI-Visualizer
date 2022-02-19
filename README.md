@@ -1,5 +1,5 @@
 # XAI-Visualizer
-## Your favourite repository to open the deep learning black box! This is a work in progress for my master thesis, you are welcome to play with it but some functionalities may be incomplete.
+Your favourite repository to open the deep learning black box! This is a work in progress for my master thesis, you are welcome to play with it but some functionalities may be incomplete.
 
 
 ## Features
