@@ -169,7 +169,7 @@ if __name__ == '__main__':
     # Choose model
     if len(input_arguments) >= 2:
         if len(input_arguments[1])==1:
-            pretrained_model = choose_model(input_arguments[1], modelname = None)
+            pretrained_model = choose_model(input_arguments[1], model_name = None)
         elif len(input_arguments[1])>1:
             pretrained_model = choose_model(0, input_arguments[1])
     else:
@@ -203,7 +203,7 @@ if __name__ == '__main__':
             if not ret:
                 break
             original_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            cv2.imshow('Webcam',frame)
+            cv2.imshow('Input',frame)
             c = cv2.waitKey(1) # ASCII 'Esc' value
             if c == 27:
                 print('Closing GradCAM, shutting down application...')
@@ -259,7 +259,7 @@ if __name__ == '__main__':
             if not ret:
                 break
             original_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            cv2.imshow('Webcam',frame)
+            cv2.imshow('Input',frame)
             
             prep_img = preprocess_image(original_image)
             file_name_to_export = f'webcam_{frame_counter}'

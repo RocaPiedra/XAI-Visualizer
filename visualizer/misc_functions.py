@@ -63,7 +63,7 @@ def save_class_activation_images(org_img, activation_map, file_name, model_name)
     if not os.path.exists('../results'):
         os.makedirs('../results')
     # Grayscale activation map
-    heatmap, heatmap_on_image = apply_colormap_on_image(org_img, activation_map, 'hsv')
+    heatmap, heatmap_on_image = apply_colormap_on_image(org_img, activation_map, 'jet')
     # Save colored heatmap
     path_to_file = os.path.join('../results', file_name+'_Cam_Heatmap'+'_'+model_name+'.png')
     save_image(heatmap, path_to_file)
