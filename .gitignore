@@ -130,3 +130,7 @@ dmypy.json
 
 #test code
 visualizer/test_code/
+notes_bugs/
+carla_code/manual_control.py
+carla_code/frontcamera.py
+.vscode/launch.json

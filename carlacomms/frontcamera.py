@@ -15,6 +15,7 @@ import random
 import time
 import numpy as np
 import cv2
+import argparse
 import pygame
 from pygame.locals import KMOD_CTRL
 from pygame.locals import K_ESCAPE
@@ -42,9 +43,9 @@ except IndexError:
     pass
 
 import carla
+from carla import ColorConverter as cc
 
 #*******************************************************************************
-#%%
 IM_WIDTH = 640
 IM_HEIGHT = 480
 IM_FOV = 100
@@ -52,6 +53,7 @@ IM_SHUTTER = 30
 
 actor_list = []
 sensor_list = []
+
 # to RGB avoiding alpha
 def process_img(image):
     i = np.array(image.raw_data)
@@ -59,14 +61,14 @@ def process_img(image):
     i2 = i.reshape((IM_HEIGHT, IM_WIDTH, 4))
     print(i2.shape)
     i3 = i2[:,:,:3] #only get rgb avoids alpha 
-    cv2.imshow("",i3)
+    cv2.imshow("front camera",i3)
     cv2.waitKey(1)
     return i3/255.0
 
-def main():
+def old_rgb():
     try:
         client = carla.Client("localhost", 2000)
-        client.set_timeout(6.0)
+        client.set_timeout(20.0)
         world = client.get_world()
         blueprint_library = world.get_blueprint_library()
         
@@ -89,7 +91,8 @@ def main():
 
         spawn_point = carla.Transform(carla.Location(x=1, z=1.3))
         sensor = world.spawn_actor(cam_bp, spawn_point, attach_to=vehicle)
-        sensor.listen(lambda data: process_img(data))
+        data = sensor.listen(lambda data: process_img(data))
+        print(data)
         sensor_list.append(sensor)
 
         while 1:
@@ -104,5 +107,5 @@ def main():
         print("all actors destroyed")
 
 if __name__ == "__main__":
-    pygame.init()
-    main()
+    # pygame.init()
+    old_rgb()
