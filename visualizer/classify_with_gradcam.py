@@ -24,6 +24,7 @@ from carlacomms.carla_sensor_platform import sensor_platform
 visualize = False
 sendToGPU = True
 prev_class = None
+activate_deleter = False
 unreal_engine_path = r"C:\Users\pablo\CARLA_0.9.13\Carla\CarlaUE4.exe"
 
 class CamExtractor():
@@ -180,7 +181,10 @@ class GradCam():
             if c == 27:
                 print('Closing simulator camera, shutting down application...')
                 cv2.destroyAllWindows()
-                exit()
+                del self
+                global activate_deleter
+                activate_deleter = True
+                return 
         return cv2_heatmap_on_image
 
 if __name__ == '__main__':
@@ -288,14 +292,18 @@ if __name__ == '__main__':
                 exit()
     
     elif option == 4:
-        # print('Carla selected as input')
+        print('Carla selected as input')
         subp_unreal, subp_traffic = launch_carla_simulator_locally()
         platform = sensor_platform()
         sensor = platform.set_sensor()
         sensor.listen(lambda data: grad_cam.visualization_pipeline(data, platform,True))
-        while 1:sleep(50)
-        # subp_unreal.terminate()
-        # subp_traffic.terminate()
+        while not activate_deleter:sleep(2)
+        
+        subp_unreal.terminate()
+        subp_traffic.terminate()
+
+        del platform
+        exit()
     else:
         print('Wrong option, shutting down application...')
         exit()

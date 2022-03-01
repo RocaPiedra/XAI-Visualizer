@@ -38,8 +38,10 @@ import carla
 IM_WIDTH = 640
 IM_HEIGHT = 480
 IM_FOV = 100
-IM_SHUTTER = 15
+IM_SHUTTER = 30
 TIMEOUT = 20
+CAM_LOC_X = 3
+CAM_LOC_Z = 1.3
 
 
 class sensor_platform():
@@ -77,7 +79,7 @@ class sensor_platform():
         cam_bp.set_attribute("image_size_y", f"{self.height}")
         cam_bp.set_attribute("fov", f"{self.fov}")
         cam_bp.set_attribute("shutter_speed", f"{self.shutter}")
-        spawn_point = carla.Transform(carla.Location(x=1, z=1.3))
+        spawn_point = carla.Transform(carla.Location(x=CAM_LOC_X, z=CAM_LOC_Z))
         self.sensor = self.world.spawn_actor(cam_bp, spawn_point, attach_to=self.vehicle)
         self.sensor_list.append(self.sensor)
         return self.sensor
