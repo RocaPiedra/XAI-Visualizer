@@ -12,13 +12,19 @@ import os
 import cv2
 import sys
 
-from misc_functions import save_class_activation_images, preprocess_image, apply_colormap_on_image
-from roc_functions import get_image_path, choose_model, get_class_name_imagenet, get_imagenet_dictionary
+from misc_functions import save_class_activation_images, apply_colormap_on_image
+from roc_functions import *
 
+# for p in sys.path: print(f'1:{p}')
+sys.path.append('..')
+# for p in sys.path: print(f'2:{p}')
+
+from carlacomms.carla_sensor_platform import sensor_platform
 # code options
 visualize = False
 sendToGPU = True
 prev_class = None
+unreal_engine_path = r"C:\Users\pablo\CARLA_0.9.13\Carla\CarlaUE4.exe"
 
 class CamExtractor():
     """
@@ -160,6 +166,22 @@ class GradCam():
         # cam = zoom(cam, np.array(input_image[0].shape[1:])/np.array(cam.shape))
         return cam
 
+    def visualization_pipeline(self, raw_data, sensor_platform, visualize_pipeline=False):
+        frame = sensor_platform.carla_to_cv(raw_data)
+        original_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        prep_img = preprocess_image(original_image)
+        cam = self.generate_cam(prep_img)
+        # Show mask
+        _, heatmap_on_image = apply_colormap_on_image(original_image, cam, 'hsv')
+        cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
+        if visualize_pipeline:
+            cv2.imshow("GradCAM: Front Camera",cv2_heatmap_on_image)
+            c = cv2.waitKey(1) # ASCII 'Esc' value
+            if c == 27:
+                print('Closing simulator camera, shutting down application...')
+                cv2.destroyAllWindows()
+                exit()
+        return cv2_heatmap_on_image
 
 if __name__ == '__main__':
     #Use input Arguments
@@ -188,18 +210,16 @@ if __name__ == '__main__':
 
     # Choose input option
     if len(input_arguments) >= 3:    
-        if int(input_arguments[2]) in (1,2,3):
+        if int(input_arguments[2]) in (1,2,3,4):
             option = int(input_arguments[2])
     else:
-        option = int(input('What type of input do you want: \n1.Webcam\n2.Use a path to open images\n3.Use a path to open video\n'))
+        option = int(input('What type of input do you want: \n1.Webcam\n2.Image Folder\n3.Video \n4.Carla Simulator\n'))
         
     if option == 1:
         print('Webcam selected as input')
-        frame_counter = 0
         cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)   # /dev/video0
         while True:
             ret, frame = cap.read()
-            frame_counter += 1
             if not ret:
                 break
             original_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -212,12 +232,6 @@ if __name__ == '__main__':
                 exit()
 
             prep_img = preprocess_image(original_image, sendToGPU)
-            file_name_to_export = f'webcam_{frame_counter}'
-            
-            if not prep_img.is_cuda:
-                if visualize: print('**\nPreprocessed image to GPU\n**')
-                prep_img = prep_img.to('cuda')
-                if visualize: print(f'in main prep_img is in cuda {prep_img.is_cuda}')
             cam = grad_cam.generate_cam(prep_img)
             # Show mask
             heatmap, heatmap_on_image = apply_colormap_on_image(original_image, cam, 'hsv')
@@ -228,9 +242,6 @@ if __name__ == '__main__':
                 cap.release()
                 cv2.destroyAllWindows()
                 exit()
-
-        cap.release()
-        cv2.destroyAllWindows()
 
     elif option == 2:
         print('Image selected as input')
@@ -268,9 +279,6 @@ if __name__ == '__main__':
             heatmap, heatmap_on_image = apply_colormap_on_image(original_image, cam, 'hsv')
             cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
             cv2.imshow('GradCam',cv2_heatmap_on_image)
-            # jet_heatmap, jet_heatmap_on_image = apply_colormap_on_image(original_image, cam, 'jet')
-            # jet_cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
-            # cv2.imshow('Jet GradCam',jet_cv2_heatmap_on_image)
 
             c = cv2.waitKey(1) # ASCII 'Esc' value
             if c == 27:
@@ -278,7 +286,16 @@ if __name__ == '__main__':
                 cap.release()
                 cv2.destroyAllWindows()
                 exit()
-
+    
+    elif option == 4:
+        # print('Carla selected as input')
+        subp_unreal, subp_traffic = launch_carla_simulator_locally()
+        platform = sensor_platform()
+        sensor = platform.set_sensor()
+        sensor.listen(lambda data: grad_cam.visualization_pipeline(data, platform,True))
+        while 1:sleep(50)
+        # subp_unreal.terminate()
+        # subp_traffic.terminate()
     else:
         print('Wrong option, shutting down application...')
         exit()

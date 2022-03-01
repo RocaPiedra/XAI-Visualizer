@@ -16,6 +16,52 @@ from misc_functions import apply_colormap_on_image, save_image
 import pickle
 from urllib.request import urlopen
 
+import subprocess
+from time import sleep
+
+def preprocess_image(pil_im, sendToGPU=True, resize_im=True):
+    """
+        Processes image for CNNs
+
+    Args:
+        PIL_img (PIL_img): PIL Image or numpy array to process
+        resize_im (bool): Resize to 224 or not
+    returns:
+        im_as_var (torch variable): Variable that contains processed float tensor
+    """
+    # mean and std list for channels (Imagenet)
+    mean = [0.485, 0.456, 0.406]
+    std = [0.229, 0.224, 0.225]
+
+    #ensure or transform incoming image to PIL image
+    if type(pil_im) != Image.Image:
+        try:
+            pil_im = Image.fromarray(pil_im)
+        except Exception as e:
+            print("could not transform PIL_img to a PIL Image object. Please check input.")
+
+    # Resize image
+    if resize_im:
+        pil_im = pil_im.resize((224, 224), Image.ANTIALIAS)
+
+    im_as_arr = np.float32(pil_im)
+    im_as_arr = im_as_arr.transpose(2, 0, 1)  # Convert array to D,W,H
+    # Normalize the channels
+    for channel, _ in enumerate(im_as_arr):
+        im_as_arr[channel] /= 255
+        im_as_arr[channel] -= mean[channel]
+        im_as_arr[channel] /= std[channel]
+    # Convert to float tensor
+    im_as_ten = torch.from_numpy(im_as_arr).float()
+    # Add one more channel to the beginning. Tensor shape = 1,3,224,224
+    im_as_ten.unsqueeze_(0)
+    # Convert to Pytorch variable
+    im_as_var = Variable(im_as_ten, requires_grad=True)
+    # if not im_as_var.is_cuda() and not sendtoGPU:
+    if sendToGPU:
+        im_as_var.to('cuda')
+    return im_as_var
+
 def get_image_path(path, filename):
     if filename == None:
         onlyimages = [path + f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)) & f.endswith(('.jpg','.png'))]
@@ -26,9 +72,9 @@ def get_image_path(path, filename):
 
 def choose_model(input_argument = None, model_name = None):
     if model_name == 'resnet':
-        model = models.resnet50(pretrained=True)
+        return models.resnet50(pretrained=True)
     elif model_name == 'alexnet':
-        model = models.alexnet(pretrained=True)
+        return models.alexnet(pretrained=True)
     elif input_argument is not None:
         if int(input_argument) in (1,2):
             option = int(input_argument)
@@ -36,16 +82,14 @@ def choose_model(input_argument = None, model_name = None):
         option = int(input('Model is not defined choose from the available list:\n'
     '1. Alexnet\n2. ResNet\n'))
     if option == 1:
-        model = models.alexnet(pretrained=True)
         print('Alexnet is the chosen classifier')
+        return models.alexnet(pretrained=True)
     elif option == 2:
-        model = models.resnet18(pretrained=True)
         print('ResNet is the chosen classifier')
+        return models.resnet18(pretrained=True)
     else:
         print('Option incorrect, set default model: Alexnet')
-        model = models.alexnet(pretrained=True)
-
-    return model
+        return models.alexnet(pretrained=True)
 
 def get_top_classes(output, number_of_classes = 5):
     idx = np.argpartition(output, -number_of_classes)[-number_of_classes:]
@@ -72,3 +116,14 @@ def get_imagenet_dictionary(url=None):
         imagenet = pickle.load(urlopen(url))
 
     return imagenet
+
+def launch_carla_simulator_locally(unreal_engine_path = None):
+    if unreal_engine_path is None:
+        unreal_engine_path = r"C:\Users\pablo\CARLA_0.9.13\Carla\CarlaUE4.exe"
+    print('Launching Unreal Engine Server...')
+    unreal_engine = subprocess.Popen(unreal_engine_path, stdout=subprocess.PIPE)
+    sleep(5)
+    print('Generating traffic...')
+    generate_traffic = subprocess.Popen(["python", r"../carlacomms/generate_traffic.py"], stdout=subprocess.PIPE)
+    return unreal_engine, generate_traffic
+
