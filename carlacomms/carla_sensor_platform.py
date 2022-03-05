@@ -60,9 +60,17 @@ class sensor_platform():
         self.blueprint_library = self.world.get_blueprint_library()
         bp = self.blueprint_library.filter("mustang")[0]
         spawn_point = random.choice(self.world.get_map().get_spawn_points())
-        self.vehicle = self.world.spawn_actor(bp, spawn_point)
-        self.vehicle.set_autopilot(True) #initiate with autopilot
-        self.actor_list.append(self.vehicle)
+        # To solve spawn collision for the sensor platform and avoid execution crash
+        for spawn_collision in range(1, 10):
+            try:
+                self.vehicle = self.world.spawn_actor(bp, spawn_point)
+                self.vehicle.set_autopilot(True) #initiate with autopilot
+                self.actor_list.append(self.vehicle)
+            except:
+                print(f'Sensor platform spawn failed. collision counter: {spawn_collision} ')
+                spawn_point = random.choice(self.world.get_map().get_spawn_points())
+                time.sleep(0.5)
+                pass
 
     def __del__(self):
         for actor in self.actor_list:
@@ -104,10 +112,6 @@ class sensor_platform():
 
 def main():
     platform = sensor_platform()
-    # platform.set_sensor()
-    while 1:
-        print(platform.camera_to_buffer())
-        time.sleep(10)
     sensor = platform.set_sensor()
     sensor.listen(lambda data: platform.carla_to_cv(data))
     while 1:

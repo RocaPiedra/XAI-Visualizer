@@ -12,6 +12,7 @@ import torch
 from torch.autograd import Variable
 from torchvision import models
 from misc_functions import apply_colormap_on_image, save_image
+import parameters
 
 import pickle
 from urllib.request import urlopen
@@ -119,7 +120,7 @@ def get_imagenet_dictionary(url=None):
 
 def launch_carla_simulator_locally(unreal_engine_path = None):
     if unreal_engine_path is None:
-        unreal_engine_path = r"C:\Users\pablo\CARLA_0.9.13\Carla\CarlaUE4.exe"
+        unreal_engine_path = parameters.unreal_engine_path
     print('Launching Unreal Engine Server...')
     unreal_engine = subprocess.Popen(unreal_engine_path, stdout=subprocess.PIPE)
     sleep(5)

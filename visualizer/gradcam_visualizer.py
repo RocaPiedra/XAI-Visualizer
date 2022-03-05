@@ -21,11 +21,9 @@ sys.path.append('..')
 
 from carlacomms.carla_sensor_platform import sensor_platform
 # code options
-visualize = False
-sendToGPU = True
+import parameters
+
 prev_class = None
-activate_deleter = False
-unreal_engine_path = r"C:\Users\pablo\CARLA_0.9.13\Carla\CarlaUE4.exe"
 
 class CamExtractor():
     """
@@ -33,7 +31,7 @@ class CamExtractor():
     """
     def __init__(self, model, target_layer):
         self.model = model
-        if torch.cuda.is_available() and sendToGPU:
+        if torch.cuda.is_available() and parameters.sendToGPU:
             self.model.to('cuda')
         else:
             print(f'GPU acceleration is NOT available')
@@ -50,22 +48,22 @@ class CamExtractor():
         conv_output = None
         gpu = torch.device('cuda')
 
-        if not x.is_cuda and sendToGPU:
+        if not x.is_cuda and parameters.sendToGPU:
             x = x.to(gpu)
 
         if self.model.__class__.__name__ == 'ResNet':
             for module_pos, module in self.model._modules.items():
-                if visualize: print(f'*\n{module_pos}: {module}')
+                if parameters.visualize: print(f'*\n{module_pos}: {module}')
                 if module_pos == "avgpool":
-                    if visualize: print(f'*\nNext module is average pooling -> size is {module.output_size}; x size is: {x.size()}')
+                    if parameters.visualize: print(f'*\nNext module is average pooling -> size is {module.output_size}; x size is: {x.size()}')
                     x.register_hook(self.save_gradient)
                     conv_output = x  # Save the convolution output on that layer
                     x = module(x)
-                    if visualize: print(f'*\navgpool output size is: {x.size()}*\nhook layer for ResNet: {module}')
+                    if parameters.visualize: print(f'*\navgpool output size is: {x.size()}*\nhook layer for ResNet: {module}')
                     return conv_output, x # For ResNet after Avg Pool there is FC layer, skip here to avoid doing FC twice
                 
                 else:
-                    if visualize: print(f"*\nforward pass in layer {module_pos} for ResNet")
+                    if parameters.visualize: print(f"*\nforward pass in layer {module_pos} for ResNet")
                     x = module(x)
 
         else:
@@ -74,9 +72,9 @@ class CamExtractor():
                 if int(module_pos) == self.target_layer:
                     x.register_hook(self.save_gradient)
                     conv_output = x  # Save the convolution output on that layer
-                    if visualize: print("hook layer: ", module)
+                    if parameters.visualize: print("hook layer: ", module)
                 else:
-                    if visualize: print("forward pass in layer: ", module)
+                    if parameters.visualize: print("forward pass in layer: ", module)
         return conv_output, x
 
     def forward_pass(self, x):
@@ -86,13 +84,13 @@ class CamExtractor():
         # Forward pass on the ResNet model https://github.com/utkuozbulak/pytorch-cnn-visualizations/issues/50
         if self.model.__class__.__name__ == 'ResNet':
             # Forward pass on the convolutions
-            if not x.is_cuda and sendToGPU:
+            if not x.is_cuda and parameters.sendToGPU:
                 x = x.to('cuda')
 
             conv_output, x = self.forward_pass_on_convolutions(x)
             x = x.cpu() # return copy to CPU to use numpy
             x = x.reshape(x.size(0), -1)  # Flatten view for alexnet, reshape for resnet
-            if not x.is_cuda and sendToGPU: # for GPU forward pass on classifier
+            if not x.is_cuda and parameters.sendToGPU: # for GPU forward pass on classifier
                 x = x.to('cuda')
             # Forward pass on the classifier
             x = self.model.fc(x)
@@ -115,6 +113,8 @@ class GradCam():
         self.model.eval()
         # Define extractor
         self.extractor = CamExtractor(self.model, target_layer)
+        # get the dictionary to obtain text results
+        self.imagenet2txt = get_imagenet_dictionary()
 
     def generate_cam(self, input_image, target_class=None):
         # Full forward pass
@@ -127,7 +127,7 @@ class GradCam():
             model_output = model_output.cpu() # return copy to CPU to use numpy
             target_class = np.argmax(model_output.data.numpy())
             if target_class != prev_class:
-                print(f'Last detected class is: {imagenet_dictionary[target_class]} | score: {model_output[0][target_class]}')
+                print(f'Last detected class is: {self.imagenet2txt[target_class]} | score: {model_output[0][target_class]}')
                 prev_class = target_class
 
         # Target for backprop
@@ -182,128 +182,6 @@ class GradCam():
                 print('Closing simulator camera, shutting down application...')
                 cv2.destroyAllWindows()
                 del self
-                global activate_deleter
-                activate_deleter = True
-                return 
+                parameters.activate_deleter = True
+                return parameters.activate_deleter
         return cv2_heatmap_on_image
-
-if __name__ == '__main__':
-    #Use input Arguments
-    input_arguments = sys.argv
-
-    imagenet_dictionary = get_imagenet_dictionary()
-    # Choose model
-    if len(input_arguments) >= 2:
-        if len(input_arguments[1])==1:
-            pretrained_model = choose_model(input_arguments[1], model_name = None)
-        elif len(input_arguments[1])>1:
-            pretrained_model = choose_model(0, input_arguments[1])
-    else:
-        pretrained_model = choose_model()
-    if torch.cuda.is_available() and sendToGPU:
-        if visualize: print('CUDA ENABLED in main')
-        pretrained_model.to('cuda')
-        if visualize: print(f'is model loaded to gpu? -> {next(pretrained_model.parameters()).is_cuda}')
-    elif not sendToGPU:
-        print('Using CPU') 
-    else:
-        print('CUDA NOT ENABLED in main, exit')
-        exit()
-    # Grad cam
-    grad_cam = GradCam(pretrained_model, target_layer=11)
-
-    # Choose input option
-    if len(input_arguments) >= 3:    
-        if int(input_arguments[2]) in (1,2,3,4):
-            option = int(input_arguments[2])
-    else:
-        option = int(input('What type of input do you want: \n1.Webcam\n2.Image Folder\n3.Video \n4.Carla Simulator\n'))
-        
-    if option == 1:
-        print('Webcam selected as input')
-        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)   # /dev/video0
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            original_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            cv2.imshow('Input',frame)
-            c = cv2.waitKey(1) # ASCII 'Esc' value
-            if c == 27:
-                print('Closing GradCAM, shutting down application...')
-                cap.release()
-                cv2.destroyAllWindows()
-                exit()
-
-            prep_img = preprocess_image(original_image, sendToGPU)
-            cam = grad_cam.generate_cam(prep_img)
-            # Show mask
-            heatmap, heatmap_on_image = apply_colormap_on_image(original_image, cam, 'hsv')
-            cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
-            cv2.imshow('GradCam',cv2_heatmap_on_image)
-            if c == 27:
-                print('Closing GradCAM, shutting down application...')
-                cap.release()
-                cv2.destroyAllWindows()
-                exit()
-
-    elif option == 2:
-        print('Image selected as input')
-        path = '../input_images/carla_input/'
-        image_paths = get_image_path(path,None)
-        # do a function for target class
-        for paths in image_paths:
-            original_image = Image.open(paths).convert('RGB')
-            prep_img = preprocess_image(original_image)
-            # take the name of the file without extension:
-            file_name_to_export = os.path.splitext(ntpath.basename(paths))[0]
-            # Generate cam mask
-            cam = grad_cam.generate_cam(prep_img)
-            # Save mask
-            save_class_activation_images(original_image, cam, file_name_to_export, pretrained_model.__class__.__name__)
-            print('GradCAM completed for image:',file_name_to_export)
-
-    elif option == 3:
-        print('Video selected as input')
-        frame_counter = 0
-        video_path = '../input_images/video_input/Road-traffic.mp4'
-        cap = cv2.VideoCapture(video_path)
-        while cap.isOpened():
-            ret, frame = cap.read()
-            frame_counter += 1
-            if not ret:
-                break
-            original_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            cv2.imshow('Input',frame)
-            
-            prep_img = preprocess_image(original_image)
-            file_name_to_export = f'webcam_{frame_counter}'
-            cam = grad_cam.generate_cam(prep_img)
-            # Show mask
-            heatmap, heatmap_on_image = apply_colormap_on_image(original_image, cam, 'hsv')
-            cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
-            cv2.imshow('GradCam',cv2_heatmap_on_image)
-
-            c = cv2.waitKey(1) # ASCII 'Esc' value
-            if c == 27:
-                print('Closing GradCAM, shutting down application...')
-                cap.release()
-                cv2.destroyAllWindows()
-                exit()
-    
-    elif option == 4:
-        print('Carla selected as input')
-        subp_unreal, subp_traffic = launch_carla_simulator_locally()
-        platform = sensor_platform()
-        sensor = platform.set_sensor()
-        sensor.listen(lambda data: grad_cam.visualization_pipeline(data, platform,True))
-        while not activate_deleter:sleep(2)
-        
-        subp_unreal.terminate()
-        subp_traffic.terminate()
-
-        del platform
-        exit()
-    else:
-        print('Wrong option, shutting down application...')
-        exit()
