@@ -3,7 +3,6 @@
 @author: Pablo Roca - github.com/RocaPiedra
 """
 import os
-import copy
 import numpy as np
 from PIL import Image, ImageFilter
 import matplotlib.cm as mpl_color_map

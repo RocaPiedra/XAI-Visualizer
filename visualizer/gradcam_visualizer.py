@@ -7,8 +7,6 @@ from PIL import Image
 from cv2 import *
 import numpy as np
 import torch
-import ntpath # to obtain the filename in a full path
-import os
 import cv2
 import sys
 
