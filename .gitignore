@@ -135,3 +135,4 @@ carla_code/manual_control.py
 carla_code/frontcamera.py
 .vscode/launch.json
 deprecated_code/
+input_images/video_input/Mirror Dash Camera.mp4
