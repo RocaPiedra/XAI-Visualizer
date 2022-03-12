@@ -15,6 +15,7 @@ import sys
 from misc_functions import save_class_activation_images, apply_colormap_on_image
 from roc_functions import *
 from gradcam_visualizer import GradCam
+from scorecam_visualizer import ScoreCam
 
 sys.path.append('..')
 
@@ -42,8 +43,12 @@ if __name__ == '__main__':
     else:
         print('CUDA NOT ENABLED in main, exit')
         exit()
-    # Grad cam
-    grad_cam = GradCam(pretrained_model, target_layer=11)
+    # GradCAM object declaration
+    option = int(input('What method do you want to use: \n1.GradCAM\n2.ScoreCAM\n'))
+    if option == 2:
+        cam = ScoreCam(pretrained_model, target_layer=None)
+    else:
+        cam = GradCam(pretrained_model, target_layer=None)
 
     # Choose input option
     if len(input_arguments) >= 3:    
@@ -63,19 +68,19 @@ if __name__ == '__main__':
             cv2.imshow('Input',frame)
             c = cv2.waitKey(1) # ASCII 'Esc' value
             if c == 27:
-                print('Closing GradCAM, shutting down application...')
+                print(f'Closing {cam.method_name}, shutting down application...')
                 cap.release()
                 cv2.destroyAllWindows()
                 exit()
 
             prep_img = preprocess_image(original_image, parameters.sendToGPU)
-            cam = grad_cam.generate_cam(prep_img)
+            cam_gen = cam.generate_cam(prep_img)
             # Show mask
-            heatmap, heatmap_on_image = apply_colormap_on_image(original_image, cam, 'hsv')
+            heatmap, heatmap_on_image = apply_colormap_on_image(original_image, cam_gen, 'hsv')
             cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
-            cv2.imshow('GradCam',cv2_heatmap_on_image)
+            cv2.imshow(f'{cam.method_name}',cv2_heatmap_on_image)
             if c == 27:
-                print('Closing GradCAM, shutting down application...')
+                print(f'Closing {cam.method_name}, shutting down application...')
                 cap.release()
                 cv2.destroyAllWindows()
                 exit()
@@ -91,10 +96,10 @@ if __name__ == '__main__':
             # take the name of the file without extension:
             file_name_to_export = os.path.splitext(ntpath.basename(paths))[0]
             # Generate cam mask
-            cam = grad_cam.generate_cam(prep_img)
+            cam_gen = cam.generate_cam(prep_img)
             # Save mask
-            save_class_activation_images(original_image, cam, file_name_to_export, pretrained_model.__class__.__name__)
-            print('GradCAM completed for image:',file_name_to_export)
+            save_class_activation_images(original_image, cam_gen, file_name_to_export, pretrained_model.__class__.__name__)
+            print(f'{cam.method_name} completed for image:',file_name_to_export)
 
     elif option == 3:
         print('Video selected as input')
@@ -111,15 +116,15 @@ if __name__ == '__main__':
             
             prep_img = preprocess_image(original_image)
             file_name_to_export = f'webcam_{frame_counter}'
-            cam = grad_cam.generate_cam(prep_img)
+            cam_gen = cam.generate_cam(prep_img)
             # Show mask
-            heatmap, heatmap_on_image = apply_colormap_on_image(original_image, cam, 'hsv')
+            heatmap, heatmap_on_image = apply_colormap_on_image(original_image, cam_gen, 'hsv')
             cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
-            cv2.imshow('GradCam',cv2_heatmap_on_image)
+            cv2.imshow(f'{cam.method_name}',cv2_heatmap_on_image)
 
             c = cv2.waitKey(1) # ASCII 'Esc' value
             if c == 27:
-                print('Closing GradCAM, shutting down application...')
+                print(f'Closing {cam.method_name}, shutting down application...')
                 cap.release()
                 cv2.destroyAllWindows()
                 exit()
@@ -129,7 +134,7 @@ if __name__ == '__main__':
         subp_unreal, subp_traffic = launch_carla_simulator_locally()
         platform = sensor_platform()
         sensor = platform.set_sensor()
-        sensor.listen(lambda data: grad_cam.visualization_pipeline(data, platform,True))
+        sensor.listen(lambda data: cam.visualization_pipeline(data, platform,True))
         while not parameters.activate_deleter:sleep(2)
         
         subp_unreal.terminate()
