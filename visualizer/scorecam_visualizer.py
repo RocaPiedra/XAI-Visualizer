@@ -106,6 +106,8 @@ class ScoreCam():
         # get the dictionary to obtain text results
         self.imagenet2txt = get_imagenet_dictionary()
         self.method_name = 'ScoreCAM'
+        self.class_name = 'Empty' # Variable that stores in object the detected class
+        self.class_score = 0 # Variable that stores in object the score of the detected class
 
     def generate_cam(self, input_image, target_class=None):
         # Full forward pass
@@ -118,8 +120,9 @@ class ScoreCam():
             model_output = model_output.cpu() # return copy to CPU to use numpy
             target_class = np.argmax(model_output.data.numpy())
             if target_class != prev_class:
-                # print(f'Last detected class is: {target_class} | score: {model_output[0][target_class]}')
-                print(f'Last detected class is: {self.imagenet2txt[target_class]} | score: {model_output[0][target_class]}')
+                self.class_name = self.imagenet2txt[target_class]
+                self.class_score = model_output[0][target_class]
+                print(f'Last detected class is: {self.class_name} | score: {self.class_score}')
                 prev_class = target_class
 
         # Target for backprop
@@ -156,7 +159,58 @@ class ScoreCam():
                        input_image.shape[3]), Image.ANTIALIAS))/255
         return cam
 
-    def visualization_pipeline(self, raw_data, sensor_platform, visualize_pipeline=False):
+
+    def visualization_pipeline(self, raw_data, sensor_platform=None, visualize_pipeline=False, visualize_original=False):
+        
+        if sensor_platform is not None:
+            frame = sensor_platform.carla_to_cv(raw_data)
+        else:
+            frame = raw_data
+
+        original_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+
+        if visualize_original:
+            cv2.imshow('Input',original_image)
+            c = cv2.waitKey(1) # ASCII 'Esc' value
+            if c == 27:
+                print(f'Closing {cam.method_name}, shutting down application...')
+                cv2.destroyAllWindows()
+                exit()
+
+        prep_img = preprocess_image(original_image)
+        cam = self.generate_cam(prep_img)
+        # Show mask
+        _, heatmap_on_image = apply_colormap_on_image(original_image, cam, 'hsv')
+        cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
+        
+        if visualize_pipeline:
+            try:
+                text = 'Class: ' + self.class_name + '\n' + 'Score: ' + str(np.round(self.class_score.detach().numpy(), 3))
+            except:
+                text = 'Class: ' + self.class_name + '\n' + 'Score: ' + str(np.round(self.class_score.numpy(), 3))
+            
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            fontScale = 0.5
+            color = (255, 255, 255)
+            thickness = 1
+            y0, dy = 12, 14
+            for i, line in enumerate(text.split('\n')):
+                y = y0 + i*dy
+                cv2_heatmap_on_image = cv2.putText(cv2_heatmap_on_image, line, (10,y),
+                                font, fontScale, color, thickness, cv2.LINE_AA, False)
+            cv2.imshow(f"{self.method_name}",cv2_heatmap_on_image)
+            c = cv2.waitKey(1) # ASCII 'Esc' value
+            if c == 27:
+                print('Closing simulator camera, shutting down application...')
+                cv2.destroyAllWindows()
+                del self
+                parameters.activate_deleter = True
+                return parameters.activate_deleter
+                
+        return cv2_heatmap_on_image
+
+        
+    def old_visualization_pipeline(self, raw_data, sensor_platform, visualize_pipeline=False):
         frame = sensor_platform.carla_to_cv(raw_data)
         original_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         prep_img = preprocess_image(original_image)
