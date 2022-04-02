@@ -126,9 +126,12 @@ def launch_carla_simulator_locally(unreal_engine_path = None):
     if unreal_engine_path is None:
         unreal_engine_path = parameters.unreal_engine_path
     print('Launching Unreal Engine Server...')
-    unreal_engine = subprocess.Popen(unreal_engine_path, stdout=subprocess.PIPE)
+    if os.name == 'nt':
+        unreal_engine = subprocess.Popen(unreal_engine_path, stdout=subprocess.PIPE)
+    else:
+        unreal_engine = subprocess.Popen([unreal_engine_path], stdout=subprocess.PIPE)
     sleep(5)
     print('Generating traffic...')
-    generate_traffic = subprocess.Popen(["python", r"../carlacomms/generate_traffic.py"], stdout=subprocess.PIPE)
+    generate_traffic = subprocess.Popen(["python", "../carlacomms/generate_traffic.py"], stdout=subprocess.PIPE)
     return unreal_engine, generate_traffic
 
