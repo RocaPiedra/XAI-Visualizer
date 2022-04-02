@@ -75,18 +75,23 @@ def choose_model(input_argument = None, model_name = None):
         return models.resnet50(pretrained=True)
     elif model_name == 'alexnet':
         return models.alexnet(pretrained=True)
+    elif model_name == 'yolov5':
+        return torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
     elif input_argument is not None:
-        if int(input_argument) in (1,2):
+        if int(input_argument) in (1,2,3):
             option = int(input_argument)
     else:
         option = int(input('Model is not defined choose from the available list:\n'
-    '1. Alexnet\n2. ResNet\n'))
+    '1. Alexnet\n2. ResNet\n3. YoloV5\n'))
     if option == 1:
         print('Alexnet is the chosen classifier')
         return models.alexnet(pretrained=True)
     elif option == 2:
         print('ResNet is the chosen classifier')
         return models.resnet18(pretrained=True)
+    elif option == 3:
+        print('YoloV5 is the chosen classifier')
+        return torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
     else:
         print('Option incorrect, set default model: Alexnet')
         return models.alexnet(pretrained=True)
