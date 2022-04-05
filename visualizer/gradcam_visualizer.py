@@ -174,16 +174,16 @@ class GradCam():
         return cam
 
     def visualization_pipeline(self, raw_data, sensor_platform=None, visualize_pipeline=False, visualize_original=False, color_palette=None):
-        
         if sensor_platform is not None:
             frame = sensor_platform.carla_to_cv(raw_data)
         else:
             frame = raw_data
 
-        original_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-
+        if os.name == 'nt':
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) #error in linux
+        
         if visualize_original:
-            cv2.imshow('Input',original_image)
+            cv2.imshow('Input',frame)
             c = cv2.waitKey(1) # ASCII 'Esc' value
             if c == 27:
                 print(f'Closing {cam.method_name}, shutting down application...')
@@ -192,11 +192,17 @@ class GradCam():
 
         if color_palette is None:
             color_palette = 'hsv'
-
-        prep_img = preprocess_image(original_image)
+        
+        if type(frame) != Image.Image:
+            try:
+                frame = Image.fromarray(frame)
+            except Exception as e:
+                print("could not transform PIL_img to a PIL Image object. Please check input.")
+    
+        prep_img = preprocess_image(frame)
         cam = self.generate_cam(prep_img)
         # Show mask
-        _, heatmap_on_image = apply_colormap_on_image(original_image, cam, color_palette)
+        _, heatmap_on_image = apply_colormap_on_image(frame, cam, color_palette)
         cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
         
         if visualize_pipeline:

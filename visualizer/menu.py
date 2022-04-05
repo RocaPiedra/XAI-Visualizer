@@ -57,11 +57,14 @@ if __name__ == '__main__':
         
     if option == 1:
         print('Webcam selected as input')
-        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)   # /dev/video0
+        if os.name == 'nt':
+            cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)   # /dev/video0
+        else:
+            cap = cv2.VideoCapture(0)
         while not parameters.activate_deleter:
             ret, frame = cap.read()
-            if not ret:
-                break
+            # if not ret:
+            #     break
             cam.visualization_pipeline(frame, None, True)
 
     elif option == 2:
@@ -96,7 +99,7 @@ if __name__ == '__main__':
         subp_unreal, subp_traffic = launch_carla_simulator_locally()
         platform = sensor_platform()
         sensor = platform.set_sensor()
-        sensor.listen(lambda data: cam.visualization_pipeline(data, platform, True, False))
+        sensor.listen(lambda data: cam.visualization_pipeline(data, platform, True, True))
         while not parameters.activate_deleter:sleep(2)
         
         subp_unreal.terminate()
