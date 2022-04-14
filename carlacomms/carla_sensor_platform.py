@@ -57,6 +57,16 @@ class sensor_platform():
         self.client = carla.Client("localhost", 2000)
         self.client.set_timeout(TIMEOUT)
         self.world = self.client.get_world()
+        traffic_manager = self.client.get_trafficmanager(8000)
+        traffic_manager.set_synchronous_mode(True)
+        
+        # synchronous mode:
+        settings = self.world.get_settings()
+        print("Is client in synchrony mode? ",settings.synchronous_mode)
+        settings.synchronous_mode = True
+        settings.fixed_delta_seconds = 0.05
+        self.world.apply_settings(settings)
+
         self.blueprint_library = self.world.get_blueprint_library()
         bp = self.blueprint_library.filter("mustang")[0]
         spawn_point = random.choice(self.world.get_map().get_spawn_points())
@@ -92,9 +102,6 @@ class sensor_platform():
         self.sensor_list.append(self.sensor)
         return self.sensor
 
-    def camera_to_buffer(self):
-        sensor_out = self.sensor.listen(lambda data: self.carla_to_cv(data))
-        return sensor_out
 
 # to RGB avoiding alpha
     def carla_to_cv(self, image, visualize=False):
