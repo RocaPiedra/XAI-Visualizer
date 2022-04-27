@@ -3,14 +3,20 @@
 @author: Pablo Roca - github.com/RocaPiedra
 """
 import os
+import sys
 import numpy as np
-from PIL import Image, ImageFilter
-import matplotlib.cm as mpl_color_map
+from PIL import Image
+
+import pygame
+from pygame.locals import *
+from pytorch_grad_cam.utils.image import show_cam_on_image
+from pytorch_grad_cam import GradCAM, ScoreCAM, GradCAMPlusPlus, AblationCAM, XGradCAM, EigenCAM, FullGrad
+sys.path.append('../visualizer')
+import roc_functions
 
 import torch
 from torch.autograd import Variable
 from torchvision import models
-from misc_functions import apply_colormap_on_image, save_image
 import parameters
 
 import pickle
@@ -18,6 +24,8 @@ from urllib.request import urlopen
 
 import subprocess
 from time import sleep
+
+
 
 def preprocess_image(pil_im, sendToGPU=True, resize_im=True):
     """
@@ -102,10 +110,11 @@ def get_top_classes(output, number_of_classes = 5):
 
 def get_class_name_imagenet(idx):
     try:
+        imagenet = pickle.load('../ImageNet_utils/imagenet1000_clsid_to_human.pkl')
+
+    except:
         url = 'https://gist.githubusercontent.com/yrevar/6135f1bd8dcf2e0cc683/raw/d133d61a09d7e5a3b36b8c111a8dd5c4b5d560ee/imagenet1000_clsid_to_human.pkl'
         imagenet = pickle.load(urlopen(url))
-    except:
-        imagenet = pickle.load(r'C:\Users\pablo\source\repos\pytorch-cnn-visualizations\ImageNet_utils\imagenet1000_clsid_to_human.pkl')
 
     return imagenet[idx]
 
@@ -132,6 +141,138 @@ def launch_carla_simulator_locally(unreal_engine_path = None):
         unreal_engine = subprocess.Popen([unreal_engine_path], stdout=subprocess.PIPE)
     sleep(5)
     print('Generating traffic...')
-    generate_traffic = subprocess.Popen(["python", "../carlacomms/generate_traffic.py"], stdout=subprocess.PIPE)
+    generate_traffic = subprocess.Popen(["python", "../carlacomms/generate_traffic.py", '--asynch', '--tm-port=8001'], stdout=subprocess.PIPE)
     return unreal_engine, generate_traffic
 
+def get_offset_list(window_res, image_res):
+    grid_size = [int(np.fix(window_res[0]/image_res[0])), int(np.fix(window_res[1]/image_res[1]))]
+    offset_list = []
+    for i in range(grid_size[0]):
+        for j in range(grid_size[1]):
+            offset = (i*image_res[0], j*image_res[1])
+            offset_list.append(tuple(offset))
+    window_size = [grid_size[0]*image_res[0], grid_size[1]*image_res[1]]
+    return offset_list, window_size
+
+def surface_to_cam(surface, cam_method):
+    array = pygame.surfarray.pixels3d(surface)
+    normalized_image = np.float32(array/255)
+
+    input_tensor = roc_functions.preprocess_image(array, True, False)
+    grayscale_cam = cam_method(input_tensor=input_tensor)
+    grayscale_cam = grayscale_cam[0, :]
+
+    visualization = show_cam_on_image(normalized_image, grayscale_cam, use_rgb=True)
+    cam_surface = pygame.surfarray.make_surface(visualization)
+    return cam_surface
+
+def draw_text(text, font, color, surface, x, y):
+    textobj = font.render(text, 1, color)
+    textrect = textobj.get_rect()
+    textrect.topleft = (x, y)
+    surface.blit(textobj, textrect)
+
+# GradCAMPlusPlus, AblationCAM, XGradCAM, EigenCAM, FullGrad
+WHITE = (255, 255, 255)
+
+def method_menu(font, surface, model, target_layers):
+    click = False
+    method_selection = True
+    colors = [list(np.random.choice(range(256), size=3)),
+                list(np.random.choice(range(256), size=3)),
+                list(np.random.choice(range(256), size=3)),
+                list(np.random.choice(range(256), size=3)),
+                list(np.random.choice(range(256), size=3)),
+                list(np.random.choice(range(256), size=3)),
+                list(np.random.choice(range(256), size=3))]
+    # for i in range(5):
+    #     colors.append(list(np.random.choice(range(256), size=3)))
+
+    while method_selection:
+        
+        surface.fill((0,0,0))
+        draw_text('Method Menu', font, (255, 255, 255), surface, 20, 20)
+        
+        mx, my = pygame.mouse.get_pos()
+        # To delimit the size of the button, in the future use value related to window res
+        w, h = pygame.display.get_surface().get_size()
+        button_width = int(w/4 - 100)
+        button_height = 50
+        
+        grad_button = pygame.Rect(50, 100, button_width, button_height)
+        score_button = pygame.Rect(50, 200, button_width, button_height)
+        xgradcam_button = pygame.Rect(50, 300, button_width, button_height)
+        ablation_button = pygame.Rect(w/2 + 50, 100, button_width, button_height)
+        eigen_button = pygame.Rect(w/2 + 50, 200, button_width, button_height)
+        fullgrad_button = pygame.Rect(w/2 + 50, 300, button_width, button_height)
+
+        pygame.draw.rect(surface, colors[0], grad_button)
+        draw_text('GradCAM', font, (255, 255, 255), surface, 50, 100)
+        pygame.draw.rect(surface, colors[1], score_button)
+        draw_text('ScoreCAM', font, (255, 255, 255), surface, 50, 200)
+        pygame.draw.rect(surface, colors[2], xgradcam_button)
+        draw_text('XGradCAM', font, (255, 255, 255), surface, 50, 300)
+        pygame.draw.rect(surface, colors[3], ablation_button)
+        draw_text('AblationCAM', font, (255, 255, 255), surface, w/2 + 50, 100)
+        pygame.draw.rect(surface, colors[4], eigen_button)
+        draw_text('EigenCAM', font, (255, 255, 255), surface, w/2 + 50, 200)
+        pygame.draw.rect(surface, colors[5], fullgrad_button)
+        draw_text('FullGrad', font, (255, 255, 255), surface, w/2 + 50, 300)
+
+        if grad_button.collidepoint((mx, my)):
+            if click:
+                cam_method = GradCAM(model=model, target_layers=target_layers, use_cuda=True)
+                method_selection = False
+                method_name = 'GradCAM'
+                print(f'{method_name} selected, loading...')
+                offsetpos = 0
+        if score_button.collidepoint((mx, my)):
+            if click:
+                cam_method = ScoreCAM(model=model, target_layers=target_layers, use_cuda=True)
+                method_selection = False
+                method_name = 'ScoreCAM'
+                print(f'{method_name} selected, loading...')
+                offsetpos = 1
+        if ablation_button.collidepoint((mx, my)):
+            if click:
+                cam_method = AblationCAM(model=model, target_layers=target_layers, use_cuda=True)
+                method_selection = False
+                method_name = 'AblationCAM'
+                print(f'{method_name} selected, loading...')
+                offsetpos = 4
+        if xgradcam_button.collidepoint((mx, my)):
+            if click:
+                cam_method = XGradCAM(model=model, target_layers=target_layers, use_cuda=True)
+                method_selection = False
+                method_name = 'XGradCAM'
+                print(f'{method_name} selected, loading...')
+                offsetpos = 2
+        if eigen_button.collidepoint((mx, my)):
+            if click:
+                cam_method = EigenCAM(model=model, target_layers=target_layers, use_cuda=True)
+                method_selection = False
+                method_name = 'EigenCAM'
+                print(f'{method_name} selected, loading...')
+                offsetpos = 3
+        if fullgrad_button.collidepoint((mx, my)):
+            if click:
+                cam_method = FullGrad(model=model, target_layers=target_layers, use_cuda=True)
+                method_selection = False
+                method_name = 'FullGrad'
+                print(f'{method_name} selected, loading...')
+                offsetpos = 5
+        click = False
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == KEYDOWN:
+                if event.key == K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+            if event.type == MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    click = True
+        pygame.display.update()
+
+    return cam_method, method_name, offsetpos

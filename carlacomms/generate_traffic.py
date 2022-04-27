@@ -108,7 +108,7 @@ def main():
         metavar='P',
         default=8000,
         type=int,
-        help='Port to communicate with TM (default: 8000)')
+        help='Port to communicate with TM (default: 8000)') #change
     argparser.add_argument(
         '--asynch',
         action='store_true',
