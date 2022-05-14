@@ -6,7 +6,7 @@ import os
 import sys
 import numpy as np
 from PIL import Image
-
+    
 import pygame
 from pygame.locals import *
 from pytorch_grad_cam.utils.image import show_cam_on_image
@@ -174,19 +174,17 @@ def draw_text(text, font, color, surface, x, y):
 
 # GradCAMPlusPlus, AblationCAM, XGradCAM, EigenCAM, FullGrad
 WHITE = (255, 255, 255)
+BUTTON_COLOR = (169,169,169)
 
 def method_menu(font, surface, model, target_layers):
     click = False
     method_selection = True
-    colors = [list(np.random.choice(range(256), size=3)),
-                list(np.random.choice(range(256), size=3)),
-                list(np.random.choice(range(256), size=3)),
-                list(np.random.choice(range(256), size=3)),
-                list(np.random.choice(range(256), size=3)),
-                list(np.random.choice(range(256), size=3)),
-                list(np.random.choice(range(256), size=3))]
-    # for i in range(5):
-    #     colors.append(list(np.random.choice(range(256), size=3)))
+    positions = [[100,100],
+                [100,200],
+                [100,300],
+                [100,400],
+                [100,500],
+                [100,600]]
 
     while method_selection:
         
@@ -196,28 +194,28 @@ def method_menu(font, surface, model, target_layers):
         mx, my = pygame.mouse.get_pos()
         # To delimit the size of the button, in the future use value related to window res
         w, h = pygame.display.get_surface().get_size()
-        button_width = int(w/4 - 100)
-        button_height = 50
+        button_width = 300
+        button_height = 40
         
-        grad_button = pygame.Rect(50, 100, button_width, button_height)
-        score_button = pygame.Rect(50, 200, button_width, button_height)
-        xgradcam_button = pygame.Rect(50, 300, button_width, button_height)
-        ablation_button = pygame.Rect(w/2 + 50, 100, button_width, button_height)
-        eigen_button = pygame.Rect(w/2 + 50, 200, button_width, button_height)
-        fullgrad_button = pygame.Rect(w/2 + 50, 300, button_width, button_height)
+        grad_button = pygame.Rect(positions[0][0], positions[0][1], button_width, button_height)
+        score_button = pygame.Rect(positions[1][0], positions[1][1], button_width, button_height)
+        xgradcam_button = pygame.Rect(positions[2][0], positions[2][1], button_width, button_height)
+        ablation_button = pygame.Rect(positions[3][0], positions[3][1], button_width, button_height)
+        eigen_button = pygame.Rect(positions[4][0], positions[4][1], button_width, button_height)
+        fullgrad_button = pygame.Rect(positions[5][0], positions[5][1], button_width, button_height)
 
-        pygame.draw.rect(surface, colors[0], grad_button)
-        draw_text('GradCAM', font, (255, 255, 255), surface, 50, 100)
-        pygame.draw.rect(surface, colors[1], score_button)
-        draw_text('ScoreCAM', font, (255, 255, 255), surface, 50, 200)
-        pygame.draw.rect(surface, colors[2], xgradcam_button)
-        draw_text('XGradCAM', font, (255, 255, 255), surface, 50, 300)
-        pygame.draw.rect(surface, colors[3], ablation_button)
-        draw_text('AblationCAM', font, (255, 255, 255), surface, w/2 + 50, 100)
-        pygame.draw.rect(surface, colors[4], eigen_button)
-        draw_text('EigenCAM', font, (255, 255, 255), surface, w/2 + 50, 200)
-        pygame.draw.rect(surface, colors[5], fullgrad_button)
-        draw_text('FullGrad', font, (255, 255, 255), surface, w/2 + 50, 300)
+        pygame.draw.rect(surface, BUTTON_COLOR, grad_button)
+        draw_text('GradCAM', font, (255, 255, 255), surface, positions[0][0], positions[0][1]+button_height-15)
+        pygame.draw.rect(surface, BUTTON_COLOR, score_button)
+        draw_text('ScoreCAM', font, (255, 255, 255), surface, positions[1][0], positions[1][1]+button_height-15)
+        pygame.draw.rect(surface, BUTTON_COLOR, xgradcam_button)
+        draw_text('XGradCAM', font, (255, 255, 255), surface, positions[2][0], positions[2][1]+button_height-15)
+        pygame.draw.rect(surface, BUTTON_COLOR, ablation_button)
+        draw_text('AblationCAM', font, (255, 255, 255), surface, positions[3][0], positions[3][1]+button_height-15)
+        pygame.draw.rect(surface, BUTTON_COLOR, eigen_button)
+        draw_text('EigenCAM', font, (255, 255, 255), surface, positions[4][0], positions[4][1]+button_height-15)
+        pygame.draw.rect(surface, BUTTON_COLOR, fullgrad_button)
+        draw_text('FullGrad', font, (255, 255, 255), surface, positions[5][0], positions[5][1]+button_height-15)
 
         if grad_button.collidepoint((mx, my)):
             if click:
