@@ -13,9 +13,17 @@ import sys
 from misc_functions import save_class_activation_images, apply_colormap_on_image
 from roc_functions import *
 
+try:
+    import pygame
+    import pygame.camera
+    import pygame.image
+    from pygame.locals import K_ESCAPE
+    from pygame.locals import K_q
+except ImportError:
+    raise RuntimeError('cannot import pygame, make sure pygame package is installed')
+
 sys.path.append('..')
 
-from carlacomms.carla_sensor_platform import sensor_platform
 # code options
 import parameters
 
@@ -117,8 +125,13 @@ class GradCam():
         # get the dictionary to obtain text results
         self.imagenet2txt = get_imagenet_dictionary()
         self.method_name = 'GradCAM'
-        self.class_name = 'Empty' # Variable that stores in object the detected class
+        self.class_name = ' # Variable that stores in object the detected class
         self.class_score = 0 # Variable that stores in object the score of the detected class
+        # pygame initialization
+        pygame.init()
+        pygame.font.init() #for fonts rendering
+        pygame.camera.init()
+        cameras = pygame.camera.list_cameras()
 
     def generate_cam(self, input_image, target_class=None):
         # Full forward pass
@@ -173,7 +186,7 @@ class GradCam():
         # cam = zoom(cam, np.array(input_image[0].shape[1:])/np.array(cam.shape))
         return cam
 
-    def visualization_pipeline(self, raw_data, sensor_platform=None, visualize_pipeline=False, visualize_original=False, color_palette=None):
+    def visualization_pipeline(self, raw_data, sensor_platform=None, visualize_pipeline=True, visualize_original=False, color_palette=None):
         if sensor_platform is not None:
             frame = sensor_platform.carla_to_cv(raw_data)
         else:
@@ -203,7 +216,9 @@ class GradCam():
         cam = self.generate_cam(prep_img)
         # Show mask
         _, heatmap_on_image = apply_colormap_on_image(frame, cam, color_palette)
+        print(f'heatmap on image shape and type {np.shape(heatmap_on_image)} - {type(heatmap_on_image)}')
         cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
+        print(f'cv2 heatmap on image shape and type {np.shape(cv2_heatmap_on_image)} - {type(cv2_heatmap_on_image)}')
         
         if visualize_pipeline:
             text = 'Class: ' + self.class_name + '\n' + 'Score: ' + str(np.round(self.class_score.detach().numpy(), 3))
@@ -222,7 +237,59 @@ class GradCam():
                 print('Closing simulator camera, shutting down application...')
                 cv2.destroyAllWindows()
                 del self
-                parameters.activate_deleter = True
-                return parameters.activate_deleter
-                
+
+        return cv2_heatmap_on_image
+
+    def pygame_visualization_pipeline(self, raw_data, sensor_platform=None, visualize_pipeline=True, visualize_original=False, color_palette=None):
+        if sensor_platform is not None:
+            frame = sensor_platform.carla_to_cv(raw_data)
+        else:
+            frame = raw_data
+
+        if os.name == 'nt':
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) #error in linux
+        
+        if visualize_original:
+            cv2.imshow('Input',frame)
+            c = cv2.waitKey(1) # ASCII 'Esc' value
+            if c == 27:
+                print(f'Closing {cam.method_name}, shutting down application...')
+                cv2.destroyAllWindows()
+                exit()
+
+        if color_palette is None:
+            color_palette = 'hsv'
+        
+        if type(frame) != Image.Image:
+            try:
+                frame = Image.fromarray(frame)
+            except Exception as e:
+                print("could not transform PIL_img to a PIL Image object. Please check input.")
+    
+        prep_img = preprocess_image(frame)
+        cam = self.generate_cam(prep_img)
+        # Show mask
+        _, heatmap_on_image = apply_colormap_on_image(frame, cam, color_palette)
+        print(f'heatmap on image shape and type {np.shape(heatmap_on_image)} - {type(heatmap_on_image)}')
+        cv2_heatmap_on_image = cv2.cvtColor(np.array(heatmap_on_image), cv2.COLOR_RGB2BGR)
+        print(f'cv2 heatmap on image shape and type {np.shape(cv2_heatmap_on_image)} - {type(cv2_heatmap_on_image)}')
+        
+        if visualize_pipeline:
+            text = 'Class: ' + self.class_name + '\n' + 'Score: ' + str(np.round(self.class_score.detach().numpy(), 3))
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            fontScale = 0.5
+            color = (255, 255, 255)
+            thickness = 1
+            y0, dy = 12, 14
+            for i, line in enumerate(text.split('\n')):
+                y = y0 + i*dy
+                cv2_heatmap_on_image = cv2.putText(cv2_heatmap_on_image, line, (10,y),
+                                font, fontScale, color, thickness, cv2.LINE_AA, False)
+            cv2.imshow(f"{self.method_name}",cv2_heatmap_on_image)
+            c = cv2.waitKey(1) # ASCII 'Esc' value
+            if c == 27:
+                print('Closing simulator camera, shutting down application...')
+                cv2.destroyAllWindows()
+                del self
+
         return cv2_heatmap_on_image

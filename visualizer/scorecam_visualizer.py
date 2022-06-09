@@ -170,7 +170,7 @@ class ScoreCam():
         original_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
         if visualize_original:
-            cv2.imshow('Input',original_image)
+            cv2.imshow('Input',frame)
             c = cv2.waitKey(1) # ASCII 'Esc' value
             if c == 27:
                 print(f'Closing {cam.method_name}, shutting down application...')

@@ -137,4 +137,6 @@ carla_code/frontcamera.py
 deprecated_code/
 input_images/video_input/Mirror Dash Camera.mp4
 ImageNet_utils/imagenet_useful_classes.csv
-carla_examples/
+examples/
+pygame_test/
+test/examplemenu.py

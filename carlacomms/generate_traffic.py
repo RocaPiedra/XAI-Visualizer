@@ -13,6 +13,10 @@ import os
 import sys
 import time
 
+sys.path.append('../visualizer')
+
+import parameters
+
 try:
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
         sys.version_info.major,
@@ -347,6 +351,8 @@ def main():
         while True:
             if not args.asynch and synchronous_master:
                 world.tick()
+            elif parameters.call_pause:
+                client.set_timeout(100)
             else:
                 world.wait_for_tick()
 

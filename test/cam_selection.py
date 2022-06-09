@@ -3,8 +3,6 @@ import sys
 
 sys.path.append('../visualizer')
 
-from gradcam_visualizer import GradCam
-from scorecam_visualizer import ScoreCam
 import roc_functions
 import torch
 from PIL import Image
