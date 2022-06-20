@@ -10,13 +10,14 @@
 Script that render multiple sensors in the same pygame window
 
 By default, it renders four cameras, one LiDAR and one Semantic LiDAR.
-It can easily be configure for any different number of sensors. 
-To do that, check lines 290-308.
+
 """
 
 import glob
 import os
+from pyexpat import model
 import sys
+from tkinter import font
 
 sys.path.append('../visualizer')
 
@@ -24,6 +25,7 @@ sys.path.append('../visualizer')
 # from scorecam_visualizer import ScoreCam
 import roc_functions
 import parameters
+from menu_functions import menu
 
 try:
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
@@ -99,6 +101,9 @@ class DisplayManager:
 
     def render_enabled(self):
         return self.display != None
+    
+    def get_display(self):
+        return self.display
 
 class SensorManager:
     def __init__(self, world, display_man, sensor_type, transform, attached, sensor_options, display_pos):
@@ -175,7 +180,7 @@ class SensorManager:
     def get_sensor(self):
         return self.sensor
 
-    def save_rgb_image(self, image):
+    def save_rgb_image(self, image, return_image = False):
         t_start = self.timer.time()
 
         image.convert(carla.ColorConverter.Raw)
@@ -190,6 +195,9 @@ class SensorManager:
         t_end = self.timer.time()
         self.time_processing += (t_end-t_start)
         self.tics_processing += 1
+        
+        if return_image:
+            return image
 
     def save_lidar_image(self, image):
         t_start = self.timer.time()
@@ -260,104 +268,6 @@ class SensorManager:
     def destroy(self):
         self.sensor.destroy()
 
-class CamManager:
-    def __init__(self, world, display_man, sensor_type, transform, attached, sensor_options, display_pos):
-        self.surface = None
-        self.world = world
-        self.display_man = display_man
-        self.display_pos = display_pos
-        self.cam = self.get_cam(sensor_type, transform, attached, sensor_options)
-        self.sensor_options = sensor_options
-        self.timer = CustomTimer()
-
-        self.time_processing = 0.0
-        self.tics_processing = 0
-
-        self.display_man.add_sensor(self)
-
-    def init_sensor(self, sensor_type, transform, attached, sensor_options):
-        if sensor_type == 'RGBCamera':
-            camera_bp = self.world.get_blueprint_library().find('sensor.camera.rgb')
-            disp_size = self.display_man.get_display_size()
-            camera_bp.set_attribute('image_size_x', str(disp_size[0]))
-            camera_bp.set_attribute('image_size_y', str(disp_size[1]))
-
-            for key in sensor_options:
-                camera_bp.set_attribute(key, sensor_options[key])
-
-            camera = self.world.spawn_actor(camera_bp, transform, attach_to=attached)
-            camera.listen(self.save_rgb_image)
-
-            return camera
-
-        elif sensor_type == 'LiDAR':
-            lidar_bp = self.world.get_blueprint_library().find('sensor.lidar.ray_cast')
-            lidar_bp.set_attribute('range', '100')
-            lidar_bp.set_attribute('dropoff_general_rate', lidar_bp.get_attribute('dropoff_general_rate').recommended_values[0])
-            lidar_bp.set_attribute('dropoff_intensity_limit', lidar_bp.get_attribute('dropoff_intensity_limit').recommended_values[0])
-            lidar_bp.set_attribute('dropoff_zero_intensity', lidar_bp.get_attribute('dropoff_zero_intensity').recommended_values[0])
-
-            for key in sensor_options:
-                lidar_bp.set_attribute(key, sensor_options[key])
-
-            lidar = self.world.spawn_actor(lidar_bp, transform, attach_to=attached)
-
-            lidar.listen(self.save_lidar_image)
-
-            return lidar
-        
-        elif sensor_type == 'SemanticLiDAR':
-            lidar_bp = self.world.get_blueprint_library().find('sensor.lidar.ray_cast_semantic')
-            lidar_bp.set_attribute('range', '100')
-
-            for key in sensor_options:
-                lidar_bp.set_attribute(key, sensor_options[key])
-
-            lidar = self.world.spawn_actor(lidar_bp, transform, attach_to=attached)
-
-            lidar.listen(self.save_semanticlidar_image)
-
-            return lidar
-        
-        elif sensor_type == "Radar":
-            radar_bp = self.world.get_blueprint_library().find('sensor.other.radar')
-            for key in sensor_options:
-                radar_bp.set_attribute(key, sensor_options[key])
-
-            radar = self.world.spawn_actor(radar_bp, transform, attach_to=attached)
-            radar.listen(self.save_radar_image)
-
-            return radar
-        
-        else:
-            return None
-
-    def get_sensor(self):
-        return self.sensor
-
-    def save_rgb_image(self, image):
-        t_start = self.timer.time()
-
-        image.convert(carla.ColorConverter.Raw)
-        array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
-        array = np.reshape(array, (image.height, image.width, 4))
-        array = array[:, :, :3]
-        array = array[:, :, ::-1]
-
-        if self.display_man.render_enabled():
-            self.surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
-
-        t_end = self.timer.time()
-        self.time_processing += (t_end-t_start)
-        self.tics_processing += 1
-
-    def render(self):
-        if self.surface is not None:
-            offset = self.display_man.get_display_offset(self.display_pos)
-            self.display_man.display.blit(self.surface, offset)
-
-    def destroy(self):
-        self.sensor.destroy()
 
 def run_simulation(args, client):
     """This function performed one test run using the args parameters
@@ -368,7 +278,8 @@ def run_simulation(args, client):
     vehicle = None
     vehicle_list = []
     timer = CustomTimer()
-
+    target_layers = [model.layer4[-1]]
+    class_menu = None
     try:
 
         # Getting the world and
@@ -393,7 +304,7 @@ def run_simulation(args, client):
         # Display Manager organize all the sensors an its display in a window
         # If can easily configure the grid and the total window size
         display_manager = DisplayManager(grid_size=[2, 3], window_size=[args.width, args.height])
-
+        display = display_manager.get_display()
         # Then, SensorManager can be used to spawn RGBCamera, LiDARs and SemanticLiDARs as needed
         # and assign each of them to a grid position, 
         SensorManager(world, display_manager, 'RGBCamera', carla.Transform(carla.Location(x=0, z=2.4), carla.Rotation(yaw=-90)), 
@@ -410,8 +321,11 @@ def run_simulation(args, client):
         SensorManager(world, display_manager, 'SemanticLiDAR', carla.Transform(carla.Location(x=0, z=2.4)), 
                       vehicle, {'channels' : '64', 'range' : '100', 'points_per_second': '100000', 'rotation_frequency': '20'}, display_pos=[1, 2])
 
+        #Lastly, instanciate the menu class to manage the app's options
+        
+        class_menu = menu(display_manager.display, world)
 
-        #Simulation loop
+        #Simulation loop --> to be changed with the call to run simulation from the class menu
         call_exit = False
         time_init_sim = timer.time()
         parameters.call_pause = False
@@ -447,6 +361,8 @@ def run_simulation(args, client):
     finally:
         if display_manager:
             display_manager.destroy()
+        if class_menu:
+            class_menu.__delete__()
 
         client.apply_batch([carla.command.DestroyActor(x) for x in vehicle_list])
 
@@ -456,7 +372,7 @@ def run_simulation(args, client):
 
 def main():
     argparser = argparse.ArgumentParser(
-        description='CARLA Sensor tutorial')
+        description='CARLA CAM Visualizer')
     argparser.add_argument(
         '--host',
         metavar='H',
@@ -490,7 +406,7 @@ def main():
 
     try:
         client = carla.Client(args.host, args.port)
-        client.set_timeout(5.0)
+        client.set_timeout(30.0)
 
         run_simulation(args, client)
 

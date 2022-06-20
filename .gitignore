@@ -140,3 +140,4 @@ ImageNet_utils/imagenet_useful_classes.csv
 examples/
 pygame_test/
 test/examplemenu.py
+results/
