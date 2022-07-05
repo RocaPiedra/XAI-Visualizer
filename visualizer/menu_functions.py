@@ -26,8 +26,7 @@ from urllib.request import urlopen
 from multiprocessing import Process
 import roc_functions
 import time
-
-def_img = "../input_images/carla_input/1.png"
+ 
 
 class menu:
     def __init__(self, display, world = None):
@@ -48,7 +47,7 @@ class menu:
             print("System is cuda ready")
         else:
             self.use_cuda = False
-        self.surface = pygame.image.load(def_img)
+        self.surface = None
         # cool graphic:
         # x = np.arange(0, 1920)
         # y = np.arange(0, 1080)
@@ -160,26 +159,54 @@ class menu:
             print('Memory Summary before loading CAM:')
             print(torch.cuda.memory_summary(device='cuda', abbreviated=False))    
         if method_name == 'ScoreCAM':
-            cam_method = ScoreCAM(model=self.model, target_layers=self.target_layers, use_cuda=True)
+            try:
+                cam_method = ScoreCAM(model=self.model, target_layers=self.target_layers, use_cuda=True)
+            except:
+                print("error thrown, using CPU")
+                cam_method = ScoreCAM(model=self.model, target_layers=self.target_layers, use_cuda=False)
             
         if method_name == 'AblationCAM':
-            cam_method = AblationCAM(model=self.model, target_layers=self.target_layers, use_cuda=True)
+            try:
+                cam_method = AblationCAM(model=self.model, target_layers=self.target_layers, use_cuda=True)
+            except:
+                print("error thrown, using CPU")
+                cam_method = AblationCAM(model=self.model, target_layers=self.target_layers, use_cuda=False)
             
         if method_name == 'XGradCAM':
-            cam_method = XGradCAM(model=self.model, target_layers=self.target_layers, use_cuda=True)
+            try:
+                cam_method = XGradCAM(model=self.model, target_layers=self.target_layers, use_cuda=True)
+            except:
+                print("error thrown, using CPU")
+                cam_method = XGradCAM(model=self.model, target_layers=self.target_layers, use_cuda=False)
             
         if method_name == 'EigenCAM':
-            cam_method = EigenCAM(model=self.model, target_layers=self.target_layers, use_cuda=True)
+            try:
+                cam_method = EigenCAM(model=self.model, target_layers=self.target_layers, use_cuda=True)
+            except:
+                print("error thrown, using CPU")
+                cam_method = EigenCAM(model=self.model, target_layers=self.target_layers, use_cuda=False)
             
         if method_name == 'FullGrad':
-            cam_method = FullGrad(model=self.model, target_layers=self.target_layers, use_cuda=True)
+            try:
+                cam_method = FullGrad(model=self.model, target_layers=self.target_layers, use_cuda=True)
+            except:
+                print("error thrown, using CPU")
+                cam_method = FullGrad(model=self.model, target_layers=self.target_layers, use_cuda=False)
             
         if method_name == 'GradCAM++':
-            cam_method = GradCAMPlusPlus(model=self.model, target_layers=self.target_layers, use_cuda=True)
+            try:
+                cam_method = GradCAMPlusPlus(model=self.model, target_layers=self.target_layers, use_cuda=True)
+            except:
+                print("error thrown, using CPU")
+                cam_method = GradCAMPlusPlus(model=self.model, target_layers=self.target_layers, use_cuda=False)
             
         if method_name == 'GradCAM':
-            cam_method = GradCAM(model=self.model, target_layers=self.target_layers, use_cuda=True)
-        
+            try:
+                cam_method = GradCAM(model=self.model, target_layers=self.target_layers, use_cuda=True)
+            except:
+                print("error thrown, using CPU")
+                cam_method = GradCAM(model=self.model, target_layers=self.target_layers, use_cuda=False)
+            
         if self.use_cuda:
             print('Memory Summary after loading CAM:')
             print(torch.cuda.memory_summary(device='cuda', abbreviated=False))   
@@ -192,7 +219,6 @@ class menu:
             return [self.model.layer4[-1]]
         elif self.model.__class__.__name__ == 'Alexnet':
             return [11]
-    
     
     def select_model(self):
         model_selection = True
@@ -308,53 +334,49 @@ class menu:
                         
             pygame.display.update()
 
-        # if model:
-        #     return model
-    
-    def prob_calc(self, img = pygame.image.load(def_img)):
-        probabilities = self.run_model(img)
+    #This option obtains the inference results from outside the cam method
+    def prob_calc(self, img):
+        output = self.run_model(img)
+        probabilities = torch.nn.functional.softmax(output[0], dim=0)
+        print(f'[NO EFFICIENCE] gpu inference output size is {probabilities.size()}')
         probabilities = probabilities.to('cpu')
+        print(f'[NO EFFICIENCE] cpu inference output size is {probabilities.size()}')
+        target_class = np.argmax(probabilities.data.numpy())
+        print(f'[NO EFFICIENCE] cpu inference output size is {target_class.size()}')
+        class_name = self.class_list[target_class]
+        class_score = probabilities[target_class]
+        return class_name, class_score
+    
+    def prob_calc_efficient(self, output):
+        # The output has unnormalized scores. To get probabilities, run a softmax on it.
+        probabilities = torch.nn.functional.softmax(output[0], dim=0)
+        probabilities = probabilities.to('cpu')
+        print(f'cpu inference output size is {probabilities.size()}')
         target_class = np.argmax(probabilities.data.numpy())
         class_name = self.class_list[target_class]
         class_score = probabilities[target_class]
         return class_name, class_score
     
-    def run_cam(self, img = pygame.image.load(def_img)):
-        
+    def run_cam(self, img):
         t0 = time.time()
         # get the cam heat map in a pygame image
-        self.surface =  roc_functions.surface_to_cam(img, self.cam)
+        self.surface, inf_outputs =  roc_functions.surface_to_cam(img, self.cam)
         print('time needed for visualization method creation :', time.time()-t0)
         t1 = time.time()
-        class_name, class_score = self.prob_calc(img)
+        class_name, class_score = self.prob_calc_efficient(inf_outputs)
         print('time needed for probabilities calculation:', time.time()-t1)
         self.image_location = (0,0)
         self.render
         pygame.display.update()
         return class_name, class_score
-        
-    def run_cam_parallel(self, img = pygame.image.load(def_img)):
-        
-        # get the cam heat map in a pygame image
-        process_cam = Process(target=roc_functions.surface_to_cam, args=(img, self.cam))
-        process_prob = Process(target=self.prob_calc, args=(self.model, img))
-        t0 = time.time()
-        process_cam.start()
-        process_prob.start()
-        
-        process_cam.join()
-        print('time needed for visualization method creation :', time.time()-t0)
-        
-        process_prob.join()
-        print('time needed for probabilities calculation:', time.time()-t0)
-        
-        
-    def render(self):
+
+    def render(self, selected_location):
+        if selected_location:
+            self.image_location = selected_location
         if self.surface is not None:
             self.display.blit(self.surface, self.image_location)
-
-        
-    def run_model(self, img = pygame.image.load(def_img)):
+    
+    def run_model(self, img):
         with torch.no_grad():
             preprocessed_image = pygame.surfarray.pixels3d(img)
             preprocess = transforms.Compose([
@@ -372,9 +394,7 @@ class menu:
                 input_tensor = input_tensor.to('cuda')
             output = self.model(input_tensor)
             del input_tensor
-            # The output has unnormalized scores. To get probabilities, run a softmax on it.
-            probabilities = torch.nn.functional.softmax(output[0], dim=0)
-            return probabilities
+            return output
         
     # def run_menu(self):
     #     call_exit = False
@@ -419,9 +439,11 @@ class menu:
     #         self.render()
     #         pygame.display.update()
             
-    def run_menu_no_loop(self, event, call_exit):            
+    def run_menu_no_loop(self, event, call_exit, input_image, offset):  
+        call_exit = False          
         if event.type == pygame.QUIT:
             call_exit = True
+            return call_exit
         elif event.type == pygame.KEYDOWN:
             if event.key == K_ESCAPE or event.key == K_q:
                 call_exit = True
@@ -430,8 +452,13 @@ class menu:
                 parameters.call_pause = not parameters.call_pause
                 if parameters.call_pause:
                     if self.cam is not None:
-                        class_name, class_score = self.run_cam()
-                        print(f"Class detected: {class_name}")
+                        if input_image:
+                            print('input image is ready')
+                            class_name, class_score = self.run_cam(input_image)
+                        else:
+                            print('No input image')
+                            class_name, class_score = self.run_cam()
+                        print(f"Class detected: {class_name} with score: {class_score}")
                     else:
                         print("CAM method is not selected, Press button M")
                         parameters.call_pause = False
@@ -452,7 +479,7 @@ class menu:
                     self.select_model()
                     return call_exit
                 
-        self.render()
+        self.render(offset)
         pygame.display.update()           
                             
 if __name__ == '__main__':
