@@ -159,12 +159,12 @@ def surface_to_cam(surface, cam_method):
     normalized_image = np.float32(array/255)
 
     input_tensor = roc_functions.preprocess_image(array, True, False)
-    grayscale_cam = cam_method(input_tensor=input_tensor)
+    grayscale_cam, inf_outputs = cam_method(input_tensor=input_tensor)
     grayscale_cam = grayscale_cam[0, :]
 
     visualization = show_cam_on_image(normalized_image, grayscale_cam, use_rgb=True)
     cam_surface = pygame.surfarray.make_surface(visualization)
-    return cam_surface
+    return cam_surface, inf_outputs
 
 def draw_text(text, font, color, surface, x, y):
     textobj = font.render(text, 1, color)
