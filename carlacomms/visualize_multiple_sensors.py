@@ -268,7 +268,9 @@ class SensorManager:
     def destroy(self):
         self.sensor.destroy()
 
-
+    def return_surface(self):
+        return self.surface
+    
 def run_simulation(args, client):
     """This function performed one test run using the args parameters
     and connecting to the carla client passed.
@@ -278,8 +280,12 @@ def run_simulation(args, client):
     vehicle = None
     vehicle_list = []
     timer = CustomTimer()
-    target_layers = [model.layer4[-1]]
+    cam_pos_list = []
+    cam_pos_list.append([1,0])
+    cam_pos_list.append([1,2])
+    
     class_menu = None
+    
     try:
 
         # Getting the world and
@@ -309,7 +315,8 @@ def run_simulation(args, client):
         # and assign each of them to a grid position, 
         SensorManager(world, display_manager, 'RGBCamera', carla.Transform(carla.Location(x=0, z=2.4), carla.Rotation(yaw=-90)), 
                       vehicle, {}, display_pos=[0, 0])
-        SensorManager(world, display_manager, 'RGBCamera', carla.Transform(carla.Location(x=0, z=2.4), carla.Rotation(yaw=+00)), 
+        # Front camera
+        front_sensor = SensorManager(world, display_manager, 'RGBCamera', carla.Transform(carla.Location(x=0, z=2.4), carla.Rotation(yaw=+00)), 
                       vehicle, {}, display_pos=[0, 1])
         SensorManager(world, display_manager, 'RGBCamera', carla.Transform(carla.Location(x=0, z=2.4), carla.Rotation(yaw=+90)), 
                       vehicle, {}, display_pos=[0, 2])
@@ -329,44 +336,43 @@ def run_simulation(args, client):
         call_exit = False
         time_init_sim = timer.time()
         parameters.call_pause = False
+        cam_offset = display_manager.get_display_offset([1,0])
         
         while True:
             # Carla Tick
             if args.sync and not parameters.call_pause:
                 world.tick()
+                # Render received data
+                display_manager.render()
+                
             elif args.sync and parameters.call_pause:
+                # increase timeout
                 client.set_timeout(100.0)
+                
             else:
                 world.wait_for_tick()
-
-            # Render received data
-            display_manager.render()
+                # Render received data
+                display_manager.render()
 
             for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    call_exit = True
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == K_ESCAPE or event.key == K_q:
-                        call_exit = True
-                        break
-                    elif event.key == K_SPACE:
-                        parameters.call_pause = not parameters.call_pause
-                    elif event.key == pygame.K_m:
-                        cam, name, pos = roc_functions.method_menu(font, display, model, target_layers)
-
+                input_surface = front_sensor.return_surface()
+                call_exit = class_menu.run_menu_no_loop(event, call_exit, input_surface, cam_offset)
 
             if call_exit:
+                print("called exit, finishing execution")
                 break
 
     finally:
         if display_manager:
             display_manager.destroy()
         if class_menu:
-            class_menu.__delete__()
+            del class_menu
 
         client.apply_batch([carla.command.DestroyActor(x) for x in vehicle_list])
-
-        world.apply_settings(original_settings)
+        if world:
+            world.apply_settings(original_settings)
+        else:
+            print('world object does not exist, connection with client was not established')
 
 
 
@@ -406,7 +412,7 @@ def main():
 
     try:
         client = carla.Client(args.host, args.port)
-        client.set_timeout(30.0)
+        client.set_timeout(5.0)
 
         run_simulation(args, client)
 
