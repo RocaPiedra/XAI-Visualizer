@@ -104,16 +104,30 @@ class DisplayManager:
     
     def get_display(self):
         return self.display
+    
+    # returns the sensor that has been clicked on
+    def select_main_sensor(self, location):
+        for s in self.sensor_list:
+            if s.is_clicked(location):
+                if s.sensor_type == 'RGBCamera':
+                    print(f'the sensor selected is {s.sensor_type}')
+                    return s
+                else:
+                    print(f'the sensor selected is {s.sensor_type}, please select a compatible sensor [RGBCamera]')
+
 
 class SensorManager:
     def __init__(self, world, display_man, sensor_type, transform, attached, sensor_options, display_pos):
         self.surface = None
         self.world = world
         self.display_man = display_man
-        self.display_pos = display_pos
+        self.display_pos = display_pos #display position in grid
+        self.display_offset = display_man.get_display_offset(display_pos) #top left corner of display
+        self.display_size = display_man.get_display_size() #size of display in pixels
         self.sensor = self.init_sensor(sensor_type, transform, attached, sensor_options)
         self.sensor_options = sensor_options
         self.timer = CustomTimer()
+        self.sensor_type = sensor_type
 
         self.time_processing = 0.0
         self.tics_processing = 0
@@ -269,8 +283,16 @@ class SensorManager:
         self.sensor.destroy()
 
     def return_surface(self):
-        return self.surface
+        if self.surface is not None:
+            return self.surface
     
+    def is_clicked(self, location):
+        # location has X and Y positions [X,Y]
+        if ((self.display_offset[0]<location[0]<self.display_offset[0]+self.display_size[0]) and
+            (self.display_offset[1]<location[1]<self.display_offset[1]+self.display_size[1])):
+            print(f'you have clicked position {location}, sensor selected is')
+            return True
+            
 def run_simulation(args, client):
     """This function performed one test run using the args parameters
     and connecting to the carla client passed.
@@ -310,13 +332,13 @@ def run_simulation(args, client):
         # Display Manager organize all the sensors an its display in a window
         # If can easily configure the grid and the total window size
         display_manager = DisplayManager(grid_size=[2, 3], window_size=[args.width, args.height])
-        display = display_manager.get_display()
+
         # Then, SensorManager can be used to spawn RGBCamera, LiDARs and SemanticLiDARs as needed
         # and assign each of them to a grid position, 
         SensorManager(world, display_manager, 'RGBCamera', carla.Transform(carla.Location(x=0, z=2.4), carla.Rotation(yaw=-90)), 
                       vehicle, {}, display_pos=[0, 0])
-        # Front camera
-        front_sensor = SensorManager(world, display_manager, 'RGBCamera', carla.Transform(carla.Location(x=0, z=2.4), carla.Rotation(yaw=+00)), 
+        # Front camera, acts as initial main sensor, it can be changed
+        main_sensor = SensorManager(world, display_manager, 'RGBCamera', carla.Transform(carla.Location(x=0, z=2.4), carla.Rotation(yaw=+00)), 
                       vehicle, {}, display_pos=[0, 1])
         SensorManager(world, display_manager, 'RGBCamera', carla.Transform(carla.Location(x=0, z=2.4), carla.Rotation(yaw=+90)), 
                       vehicle, {}, display_pos=[0, 2])
@@ -355,9 +377,18 @@ def run_simulation(args, client):
                 display_manager.render()
 
             for event in pygame.event.get():
-                input_surface = front_sensor.return_surface()
+                input_surface = main_sensor.return_surface()
                 call_exit = class_menu.run_menu_no_loop(event, call_exit, input_surface, cam_offset)
-
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse_presses = pygame.mouse.get_pressed()
+                    if mouse_presses[0]:
+                        print("Left Mouse key was clicked")
+                        main_sensor = display_manager.select_main_sensor(location = pygame.mouse.get_pos())
+                    if mouse_presses[1]:
+                        print("Right Mouse key was clicked")
+                    if mouse_presses[2]:
+                        print("Center Mouse key was clicked")
+                        
             if call_exit:
                 print("called exit, finishing execution")
                 break

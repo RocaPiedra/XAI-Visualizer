@@ -396,49 +396,6 @@ class menu:
             del input_tensor
             return output
         
-    # def run_menu(self):
-    #     call_exit = False
-    #     while not call_exit:            
-    #         for event in pygame.event.get():
-    #             if event.type == pygame.QUIT:
-    #                 call_exit = True
-    #             elif event.type == pygame.KEYDOWN:
-    #                 if event.key == K_ESCAPE or event.key == K_q:
-    #                     call_exit = True
-    #                     break
-    #                 elif event.key == K_SPACE:
-    #                     parameters.call_pause = not parameters.call_pause
-    #                     if parameters.call_pause:
-    #                         if self.cam is not None:
-    #                             class_name, class_score = self.run_cam()
-    #                             print(f"Class detected: {class_name}")
-    #                         else:
-    #                             print("CAM method is not selected, Press button M")
-    #                             parameters.call_pause = False
-                                
-    #                 elif event.key == pygame.K_m:
-    #                     if not parameters.call_pause:
-    #                         cam_name = self.select_cam()
-    #                         if cam_name != self.cam_name:
-    #                             self.cam = self.load_cam(cam_name)
-    #                             self.cam_name = cam_name
-    #                             print(f'{cam_name} selected, loading...')
-    #                         else:                        
-    #                             print(f'{cam_name} selected, loaded')
-    #                         break
-                        
-    #                 elif event.key == pygame.K_n:
-    #                     if not parameters.call_pause:
-    #                         model = self.select_model()
-    #                         if model.__class__.__name__ != self.model.__class__.__name__:
-    #                             self.model = model
-    #                             print(f'{model.__class__.__name__} selected, loading...')
-    #                         else:                        
-    #                             print(f'{model.__class__.__name__} selected, loaded')
-    #                         break
-    #         self.render()
-    #         pygame.display.update()
-            
     def run_menu_no_loop(self, event, call_exit, input_image, offset):  
         call_exit = False          
         if event.type == pygame.QUIT:
@@ -480,7 +437,7 @@ class menu:
                     return call_exit
                 
         self.render(offset)
-        pygame.display.update()           
+        pygame.display.update()                
                             
 if __name__ == '__main__':
     pygame.init()

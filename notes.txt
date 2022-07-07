@@ -10,3 +10,17 @@ We could get that data and feed it directly to other methods.
 
 Next step: jun 18
 How the menu class can display the data obtained from the sensors and from inference
+
+july 5:
+avoid having gpu out of memory error
+option:
+select window:
+if window belongs to cam windows: to choose the model and cam method for selected window.
+
+if window belongs to camera window: select that window as input for the cam method. DONE (July 7)
+
+Filter interesting classes! at least for Coco dataset
+
+July 7:
+Solve the bug that keeps showing the cam image when the system is not paused (image blinks)
+

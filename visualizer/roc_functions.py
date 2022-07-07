@@ -52,7 +52,7 @@ def preprocess_image(pil_im, sendToGPU=True, resize_im=True):
     if resize_im:
         pil_im = pil_im.resize((224, 224), Image.ANTIALIAS)
 
-    im_as_arr = np.float32(pil_im)
+    im_as_arr = np.float32(pil_im) # W,H,D
     im_as_arr = im_as_arr.transpose(2, 0, 1)  # Convert array to D,W,H
     # Normalize the channels
     for channel, _ in enumerate(im_as_arr):
