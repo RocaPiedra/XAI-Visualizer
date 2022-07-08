@@ -436,8 +436,9 @@ class menu:
                     self.select_model()
                     return call_exit
                 
-        self.render(offset)
-        pygame.display.update()                
+        if parameters.call_pause:
+            self.render(offset)
+            pygame.display.update()                
                             
 if __name__ == '__main__':
     pygame.init()
