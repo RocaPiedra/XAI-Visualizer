@@ -12,7 +12,6 @@ from pygame.locals import *
 from pytorch_grad_cam.utils.image import show_cam_on_image
 from pytorch_grad_cam import GradCAM, ScoreCAM, GradCAMPlusPlus, AblationCAM, XGradCAM, EigenCAM, FullGrad
 sys.path.append('../visualizer')
-import roc_functions
 
 import torch
 from torch.autograd import Variable
@@ -22,7 +21,7 @@ import parameters
 import pickle
 from urllib.request import urlopen
 
-import subprocess
+import subprocess, signal
 from time import sleep
 
 
@@ -33,6 +32,7 @@ def preprocess_image(pil_im, sendToGPU=True, resize_im=True):
 
     Args:
         PIL_img (PIL_img): PIL Image or numpy array to process
+        sendToGPU (bool): To process in GPU or not
         resize_im (bool): Resize to 224 or not
     returns:
         im_as_var (torch variable): Variable that contains processed float tensor
@@ -131,18 +131,38 @@ def get_imagenet_dictionary(url=None):
 
     return imagenet
 
-def launch_carla_simulator_locally(unreal_engine_path = None):
-    if unreal_engine_path is None:
-        unreal_engine_path = parameters.unreal_engine_path
+def launch_carla_simulator_locally(unreal_engine_path = parameters.unreal_engine_path):
+    sim_running = False
     print('Launching Unreal Engine Server...')
     if os.name == 'nt':
         unreal_engine = subprocess.Popen(unreal_engine_path, stdout=subprocess.PIPE)
     else:
-        unreal_engine = subprocess.Popen([unreal_engine_path], stdout=subprocess.PIPE)
+        p = subprocess.Popen(['ps', '-A'], stdout=subprocess.PIPE)
+        out, err = p.communicate()
+        for line in out.splitlines():
+            if 'CarlaUE4-Linux-' in str(line):
+                print('Simulator is already running')
+                sim_running = True
+                p.terminate()
+        if not sim_running:
+            unreal_engine = subprocess.Popen([unreal_engine_path], stdout=subprocess.PIPE)
     sleep(5)
     print('Generating traffic...')
     generate_traffic = subprocess.Popen(["python", "../carlacomms/generate_traffic.py", '--asynch', '--tm-port=8001'], stdout=subprocess.PIPE)
     return unreal_engine, generate_traffic
+
+def close_carla_simulator():
+    if os.name == 'nt':
+        print('windows termination process:')
+        os.system('taskkill /f /im CarlaUE4.exe')
+    else:
+        p = subprocess.Popen(['ps', '-A'], stdout=subprocess.PIPE)
+        out, err = p.communicate()
+        print('linux termination process:')
+        for line in out.splitlines():
+            if 'CarlaUE4-Linux-' in str(line):
+                pid = int(line.split(None, 1)[0])
+                os.kill(pid, signal.SIGKILL)
 
 def get_offset_list(window_res, image_res):
     grid_size = [int(np.fix(window_res[0]/image_res[0])), int(np.fix(window_res[1]/image_res[1]))]
@@ -154,12 +174,31 @@ def get_offset_list(window_res, image_res):
     window_size = [grid_size[0]*image_res[0], grid_size[1]*image_res[1]]
     return offset_list, window_size
 
-def surface_to_cam(surface, cam_method):
+def surface_to_cam(surface, cam_method, use_cuda=True):
     array = pygame.surfarray.pixels3d(surface)
     normalized_image = np.float32(array/255)
 
-    input_tensor = roc_functions.preprocess_image(array, True, False)
-    grayscale_cam, inf_outputs = cam_method(input_tensor=input_tensor)
+    input_tensor = preprocess_image(array, use_cuda, False)
+    try:
+        grayscale_cam, inf_outputs = cam_method(input_tensor)
+        
+    except KeyboardInterrupt:
+        print('Closing app')
+        
+    except:
+        print(f'Exception handled for input tensor not matching location,\
+                is it cuda? -> {input_tensor.is_cuda}, change location')
+        if input_tensor.is_cuda:
+            input_tensor.to('cpu')
+        else:
+            try:
+                input_tensor.to('cuda')
+            except:
+                print('no memory available for GPU')
+                input_tensor.to('cpu') #could mismatch tensor and cam method which cannot be sent to cpu from here
+        grayscale_cam, inf_outputs = cam_method(input_tensor)
+        
+    print(f'CAM Generated for model {cam_method.model.__class__.__name__}')
     grayscale_cam = grayscale_cam[0, :]
 
     visualization = show_cam_on_image(normalized_image, grayscale_cam, use_rgb=True)
@@ -274,3 +313,9 @@ def method_menu(font, surface, model, target_layers):
         pygame.display.update()
 
     return cam_method, method_name, offsetpos
+
+def check_pytorch_cuda_memory():
+    print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(0)/1024/1024/1024))
+    print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(0)/1024/1024/1024))
+    print("torch.cuda.max_memory_reserved: %fGB\n\n"%(torch.cuda.max_memory_reserved(0)/1024/1024/1024))
+    print(f'mem get info output: {torch.cuda.mem_get_info(0)}')

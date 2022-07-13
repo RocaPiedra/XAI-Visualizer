@@ -21,8 +21,6 @@ from tkinter import font
 
 sys.path.append('../visualizer')
 
-# from gradcam_visualizer import GradCam
-# from scorecam_visualizer import ScoreCam
 import roc_functions
 import parameters
 from menu_functions import menu
@@ -41,6 +39,7 @@ import random
 import time
 import numpy as np
 
+import os
 
 try:
     import pygame
@@ -308,6 +307,9 @@ def run_simulation(args, client):
     
     class_menu = None
     
+    if args.gpu:
+        use_cuda = args.gpu
+    
     try:
 
         # Getting the world and
@@ -352,7 +354,7 @@ def run_simulation(args, client):
 
         #Lastly, instanciate the menu class to manage the app's options
         
-        class_menu = menu(display_manager.display, world)
+        class_menu = menu(display_manager.display, world, use_cuda)
 
         #Simulation loop --> to be changed with the call to run simulation from the class menu
         call_exit = False
@@ -383,7 +385,10 @@ def run_simulation(args, client):
                     mouse_presses = pygame.mouse.get_pressed()
                     if mouse_presses[0]:
                         print("Left Mouse key was clicked")
-                        main_sensor = display_manager.select_main_sensor(location = pygame.mouse.get_pos())
+                        selected_sensor = display_manager.select_main_sensor(location = pygame.mouse.get_pos())
+                        if selected_sensor:
+                            main_sensor = selected_sensor
+                            print(f'main sensor type is {main_sensor.sensor_type}')
                     if mouse_presses[1]:
                         print("Right Mouse key was clicked")
                     if mouse_presses[2]:
@@ -436,6 +441,12 @@ def main():
         metavar='WIDTHxHEIGHT',
         default='1920x1080',
         help='window resolution (default: 1920x1080)')
+    argparser.add_argument(
+        '--gpu',
+        dest='gpu',
+        action='store_true',
+        help='GPU acceleration mode execution')
+    argparser.set_defaults(gpu=True)
 
     args = argparser.parse_args()
 
@@ -448,13 +459,24 @@ def main():
         run_simulation(args, client)
 
     except (RuntimeError, TypeError, NameError):
-        roc_functions.launch_carla_simulator_locally()
+        _, generate_traffic = roc_functions.launch_carla_simulator_locally()
         client = carla.Client(args.host, args.port)
         client.set_timeout(5.0)
         run_simulation(args, client)
 
     except KeyboardInterrupt:
         print('\nCancelled by user. Bye!')
+        
+    finally:
+        print('terminating traffic...')
+        try:
+            generate_traffic.terminate()
+        except:
+            print('generate traffic process is not defined')
+        print('terminating simulator...')
+        close_sim_at_exit = True
+        if close_sim_at_exit:
+            roc_functions.close_carla_simulator()
 
 
 if __name__ == '__main__':
