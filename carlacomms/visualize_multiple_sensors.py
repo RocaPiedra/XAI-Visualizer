@@ -353,7 +353,6 @@ def run_simulation(args, client):
                       vehicle, {'channels' : '64', 'range' : '100', 'points_per_second': '100000', 'rotation_frequency': '20'}, display_pos=[1, 2])
 
         #Lastly, instanciate the menu class to manage the app's options
-        
         class_menu = menu(display_manager.display, world, use_cuda)
 
         #Simulation loop --> to be changed with the call to run simulation from the class menu
@@ -442,6 +441,12 @@ def main():
         default='1920x1080',
         help='window resolution (default: 1920x1080)')
     argparser.add_argument(
+        '--closesim',
+        dest='closesim',
+        action='store_false',
+        help='Maintain simulation execution in the background')
+    argparser.set_defaults(closesim=True)
+    argparser.add_argument(
         '--gpu',
         dest='gpu',
         action='store_true',
@@ -474,9 +479,13 @@ def main():
         except:
             print('generate traffic process is not defined')
         print('terminating simulator...')
-        close_sim_at_exit = True
+        # close_sim_at_exit = True
+        close_sim_at_exit = args.closesim
+        print(f'from args the closesim option for close sim is {close_sim_at_exit}')
+        
         if close_sim_at_exit:
             roc_functions.close_carla_simulator()
+            sys.exit(0)
 
 
 if __name__ == '__main__':

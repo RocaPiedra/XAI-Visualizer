@@ -177,8 +177,28 @@ def get_offset_list(window_res, image_res):
 def surface_to_cam(surface, cam_method, use_cuda=True):
     array = pygame.surfarray.pixels3d(surface)
     normalized_image = np.float32(array/255)
-
     input_tensor = preprocess_image(array, use_cuda, False)
+    
+    print(f'Verify input tensor and model location, GPU usage selected: {use_cuda}')
+    print(f'Input Tensor is in GPU: {input_tensor.is_cuda}')
+    print(f'Model is in GPU: {next(cam_method.model.parameters()).is_cuda}')
+    
+    if input_tensor.is_cuda != next(cam_method.model.parameters()).is_cuda:
+        print('The input and the model location do not match. Trying to solve the problem...')
+        if use_cuda:
+            input_tensor.to('cuda')
+            cam_method.model.to('cuda')
+            # cam_method.model.cuda() # Does the same
+            print('Input and model moved to GPU')
+        else:
+            input_tensor.to('cpu')
+            cam_method.model.to('cpu')
+            print('Input and model moved to CPU')
+    
+        print(f'New location:')
+        print(f'Input Tensor is in GPU: {input_tensor.is_cuda}')
+        print(f'Model is in GPU: {next(cam_method.model.parameters()).is_cuda}')
+    
     try:
         grayscale_cam, inf_outputs = cam_method(input_tensor)
         
@@ -187,7 +207,7 @@ def surface_to_cam(surface, cam_method, use_cuda=True):
         
     except:
         print(f'Exception handled for input tensor not matching location,\
-                is it cuda? -> {input_tensor.is_cuda}, change location')
+            is it cuda? -> {input_tensor.is_cuda}, change location')
         if input_tensor.is_cuda:
             input_tensor.to('cpu')
         else:
