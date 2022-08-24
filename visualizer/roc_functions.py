@@ -6,7 +6,8 @@ import os
 import sys
 import numpy as np
 from PIL import Image
-    
+from typing import List
+
 import pygame
 from pygame.locals import *
 from pytorch_grad_cam.utils.image import show_cam_on_image
@@ -67,7 +68,7 @@ def preprocess_image(pil_im, sendToGPU=True, resize_im=True):
     im_as_var = Variable(im_as_ten, requires_grad=True)
     # if not im_as_var.is_cuda() and not sendtoGPU:
     if sendToGPU:
-        im_as_var.to('cuda')
+        im_as_var = im_as_var.to('cuda')
     return im_as_var
 
 def get_image_path(path, filename):
@@ -107,6 +108,12 @@ def choose_model(input_argument = None, model_name = None):
 def get_top_classes(output, number_of_classes = 5):
     idx = np.argpartition(output, -number_of_classes)[-number_of_classes:]
     return idx
+
+def get_top_detections(probabilities, num_detections = 5):
+        top_locations = np.argpartition(probabilities, -num_detections)[-num_detections:]
+        ordered_locations = top_locations[np.argsort((-probabilities)[top_locations])]
+        np.flip(ordered_locations)    
+        return top_locations, ordered_locations
 
 def get_class_name_imagenet(idx):
     try:
@@ -148,7 +155,7 @@ def launch_carla_simulator_locally(unreal_engine_path = parameters.unreal_engine
             unreal_engine = subprocess.Popen([unreal_engine_path], stdout=subprocess.PIPE)
     sleep(5)
     print('Generating traffic...')
-    generate_traffic = subprocess.Popen(["python", "../carlacomms/generate_traffic.py", '--asynch', '--tm-port=8001'], stdout=subprocess.PIPE)
+    generate_traffic = subprocess.Popen(["python3", "../carlacomms/generate_traffic.py", '--asynch', '--tm-port=8001'], stdout=subprocess.PIPE)
     return unreal_engine, generate_traffic
 
 def close_carla_simulator():
@@ -174,7 +181,8 @@ def get_offset_list(window_res, image_res):
     window_size = [grid_size[0]*image_res[0], grid_size[1]*image_res[1]]
     return offset_list, window_size
 
-def surface_to_cam(surface, cam_method, use_cuda=True):
+def surface_to_cam(surface, cam_method, use_cuda=True,
+                   target_classes: List[torch.nn.Module] = None):
     array = pygame.surfarray.pixels3d(surface)
     normalized_image = np.float32(array/255)
     input_tensor = preprocess_image(array, use_cuda, False)
@@ -186,7 +194,7 @@ def surface_to_cam(surface, cam_method, use_cuda=True):
     if input_tensor.is_cuda != next(cam_method.model.parameters()).is_cuda:
         print('The input and the model location do not match. Trying to solve the problem...')
         if use_cuda:
-            input_tensor.to('cuda')
+            input_tensor = input_tensor.to('cuda')
             cam_method.model.to('cuda')
             # cam_method.model.cuda() # Does the same
             print('Input and model moved to GPU')
@@ -212,18 +220,22 @@ def surface_to_cam(surface, cam_method, use_cuda=True):
             input_tensor.to('cpu')
         else:
             try:
-                input_tensor.to('cuda')
+                input_tensor = input_tensor.to('cuda')
             except:
                 print('no memory available for GPU')
                 input_tensor.to('cpu') #could mismatch tensor and cam method which cannot be sent to cpu from here
-        grayscale_cam, inf_outputs = cam_method(input_tensor)
+        try:
+            # you can pass the class targets to the cam method if desired to check a target
+            grayscale_cam, inf_outputs, cam_targets = cam_method(input_tensor, target_classes)
+        except Exception as e:
+            print(f"Something failed:\n {e}")
         
     print(f'CAM Generated for model {cam_method.model.__class__.__name__}')
     grayscale_cam = grayscale_cam[0, :]
 
     visualization = show_cam_on_image(normalized_image, grayscale_cam, use_rgb=True)
     cam_surface = pygame.surfarray.make_surface(visualization)
-    return cam_surface, inf_outputs
+    return cam_surface, inf_outputs, cam_targets
 
 def draw_text(text, font, color, surface, x, y):
     textobj = font.render(text, 1, color)
