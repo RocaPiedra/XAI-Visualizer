@@ -1,6 +1,7 @@
 """
 @author: Pablo Roca - github.com/RocaPiedra
 @original author: Utku Ozbulak - github.com/utkuozbulak
+GradCAM visualizer for updated input options, including continuous feeds
 """
 from time import sleep
 from PIL import Image
@@ -125,7 +126,7 @@ class GradCam():
         # get the dictionary to obtain text results
         self.imagenet2txt = get_imagenet_dictionary()
         self.method_name = 'GradCAM'
-        self.class_name = ' # Variable that stores in object the detected class
+        self.class_name = '' # Variable that stores in object the detected class
         self.class_score = 0 # Variable that stores in object the score of the detected class
         # pygame initialization
         pygame.init()

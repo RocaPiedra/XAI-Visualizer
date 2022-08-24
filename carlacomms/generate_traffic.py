@@ -13,7 +13,8 @@ import os
 import sys
 import time
 
-sys.path.append('../visualizer')
+print('current path is %s', os.getcwd())
+sys.path.append(f'{os.getcwd()}/visualizer')
 
 import parameters
 

@@ -10,7 +10,6 @@ import os
 import cv2
 import sys
 
-from misc_functions import save_class_activation_images, apply_colormap_on_image
 from roc_functions import *
 from gradcam_visualizer import GradCam
 from scorecam_visualizer import ScoreCam

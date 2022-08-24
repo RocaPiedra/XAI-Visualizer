@@ -155,7 +155,12 @@ def launch_carla_simulator_locally(unreal_engine_path = parameters.unreal_engine
             unreal_engine = subprocess.Popen([unreal_engine_path], stdout=subprocess.PIPE)
     sleep(5)
     print('Generating traffic...')
-    generate_traffic = subprocess.Popen(["python3", "../carlacomms/generate_traffic.py", '--asynch', '--tm-port=8001'], stdout=subprocess.PIPE)
+    try:
+        generate_traffic = subprocess.Popen(["python3", f"{os.getcwd()}/carlacomms/generate_traffic.py", '--asynch', '--tm-port=8001'], stdout=subprocess.PIPE)
+        
+    except:
+        print('Failed to generate traffic, check the path...')
+        generate_traffic = subprocess.Popen(["python3", "../carlacomms/generate_traffic.py", '--asynch', '--tm-port=8001'], stdout=subprocess.PIPE)
     return unreal_engine, generate_traffic
 
 def close_carla_simulator():
@@ -199,7 +204,7 @@ def surface_to_cam(surface, cam_method, use_cuda=True,
             # cam_method.model.cuda() # Does the same
             print('Input and model moved to GPU')
         else:
-            input_tensor.to('cpu')
+            input_tensor = input_tensor.to('cpu')
             cam_method.model.to('cpu')
             print('Input and model moved to CPU')
     
@@ -209,7 +214,13 @@ def surface_to_cam(surface, cam_method, use_cuda=True,
     
     try:
         grayscale_cam, inf_outputs = cam_method(input_tensor)
-        
+        print(f'CAM Generated for model {cam_method.model.__class__.__name__}')
+        grayscale_cam = grayscale_cam[0, :]
+
+        visualization = show_cam_on_image(normalized_image, grayscale_cam, use_rgb=True)
+        cam_surface = pygame.surfarray.make_surface(visualization)
+        return cam_surface, inf_outputs, cam_targets
+    
     except KeyboardInterrupt:
         print('Closing app')
         
@@ -223,19 +234,19 @@ def surface_to_cam(surface, cam_method, use_cuda=True,
                 input_tensor = input_tensor.to('cuda')
             except:
                 print('no memory available for GPU')
-                input_tensor.to('cpu') #could mismatch tensor and cam method which cannot be sent to cpu from here
+                input_tensor = input_tensor.to('cpu') #could mismatch tensor and cam method which cannot be sent to cpu from here
         try:
             # you can pass the class targets to the cam method if desired to check a target
             grayscale_cam, inf_outputs, cam_targets = cam_method(input_tensor, target_classes)
+            print(f'CAM Generated for model {cam_method.model.__class__.__name__}')
+            grayscale_cam = grayscale_cam[0, :]
+
+            visualization = show_cam_on_image(normalized_image, grayscale_cam, use_rgb=True)
+            cam_surface = pygame.surfarray.make_surface(visualization)
+            return cam_surface, inf_outputs, cam_targets
         except Exception as e:
             print(f"Something failed:\n {e}")
-        
-    print(f'CAM Generated for model {cam_method.model.__class__.__name__}')
-    grayscale_cam = grayscale_cam[0, :]
 
-    visualization = show_cam_on_image(normalized_image, grayscale_cam, use_rgb=True)
-    cam_surface = pygame.surfarray.make_surface(visualization)
-    return cam_surface, inf_outputs, cam_targets
 
 def draw_text(text, font, color, surface, x, y):
     textobj = font.render(text, 1, color)

@@ -15,15 +15,16 @@ By default, it renders four cameras, one LiDAR and one Semantic LiDAR.
 
 import glob
 import os
-from pyexpat import model
+# from pyexpat import model
 import sys
-from tkinter import font
+# from tkinter import font
 
-sys.path.append('../visualizer')
+sys.path.append('./visualizer')
+sys.path.append('./carlacomms')
 
 import roc_functions
 import parameters
-from menu_functions import menu
+from gui_CAM import menu
 
 try:
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
@@ -43,9 +44,9 @@ import os
 
 try:
     import pygame
-    from pygame.locals import K_ESCAPE
-    from pygame.locals import K_q
-    from pygame.locals import K_SPACE
+    # from pygame.locals import K_ESCAPE
+    # from pygame.locals import K_q
+    # from pygame.locals import K_SPACE
 except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
 
@@ -396,7 +397,11 @@ def run_simulation(args, client):
             if call_exit:
                 print("called exit, finishing execution")
                 break
-
+    except Exception as e:
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        print(f'SOMETHING WENT WRONG DURING THE SIMULATION, EXCEPTION HANDLED IS:\n{e}')
+        print(exc_type, fname, exc_tb.tb_lineno)
     finally:
         if display_manager:
             display_manager.destroy()
@@ -443,9 +448,9 @@ def main():
     argparser.add_argument(
         '--keepsim',
         dest='keepsim',
-        action='store_false',
+        action='store_true',
         help='Maintain simulation execution in the background')
-    argparser.set_defaults(keepsim=True)
+    argparser.set_defaults(keepsim=False)
     argparser.add_argument(
         '--gpu',
         dest='gpu',
@@ -478,14 +483,16 @@ def main():
             generate_traffic.terminate()
         except:
             print('generate traffic process is not defined')
-        print('terminating simulator...')
-        close_sim_at_exit = args.keepsim
-        print(f'from args the keepsim option for close sim is {close_sim_at_exit}')
+            
+        print(f'from args the keepsim option is set to {args.keepsim}')
         
-        if close_sim_at_exit:
+        if not args.keepsim:
+            print('terminating simulator...')
             roc_functions.close_carla_simulator()
             sys.exit(0)
-
+        else:
+            print('simulator will keep running')
+            sys.exit(0)
 
 if __name__ == '__main__':
 
